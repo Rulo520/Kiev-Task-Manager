@@ -15,7 +15,16 @@ export async function GET(req: Request) {
     }
 
     // Call GHL v2 API (LeadConnector) to fetch users
-    const url = new URL("https://services.leadconnectorhq.com/users/");
+    // According to GHL Docs V2:
+    // - Agency Level uses: /users/search?companyId=...
+    // - Location Level uses: /users/?locationId=...
+    let urlString = "https://services.leadconnectorhq.com/users/";
+    
+    if (GHL_COMPANY_ID) {
+      urlString = "https://services.leadconnectorhq.com/users/search";
+    }
+
+    const url = new URL(urlString);
     
     if (GHL_COMPANY_ID) {
       url.searchParams.append("companyId", GHL_COMPANY_ID);
