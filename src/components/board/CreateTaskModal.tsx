@@ -12,9 +12,10 @@ interface TaskModalProps {
   role: "agency" | "client";
   columnId: string;
   agencyUsers: User[]; // Pass fetched users here
+  syncError?: string | null;
 }
 
-export function CreateTaskModal({ isOpen, onClose, onSubmit, role, columnId, agencyUsers = [] }: TaskModalProps) {
+export function CreateTaskModal({ isOpen, onClose, onSubmit, role, columnId, agencyUsers = [], syncError = null }: TaskModalProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<"low" | "medium" | "high" | "urgent">("medium");
@@ -158,7 +159,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, role, columnId, age
                   <span className="shrink-0 text-red-500">❌</span>
                   <div className="flex-1">
                     <p className="font-semibold mb-1">Error de Sincronización GHL</p>
-                    <p>Revisa la respuesta del servidor para entender por qué el Token es rechazado. Si dice 'Unauthorized', el token expiró o le faltan Scopes (users.readonly).</p>
+                    <p>{syncError || "Revisa la respuesta del servidor para entender por qué el Token es rechazado. Si dice 'Unauthorized', el token expiró o le faltan Scopes (users.readonly)."}</p>
                   </div>
                 </div>
               )}

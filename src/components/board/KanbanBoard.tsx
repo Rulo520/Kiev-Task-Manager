@@ -32,25 +32,34 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [agencyUsers, setAgencyUsers] = useState<User[]>(initialAgencyUsers);
   const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "error">("idle");
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   // Client-side background sync
   useEffect(() => {
     if (role === "agency") {
       setSyncStatus("syncing");
       fetch("/api/ghl/users")
-        .then((res) => {
-          if (!res.ok) throw new Error("Sync failed");
-          return res.json();
+        .then(async (res) => {
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || "Sync failed");
+          }
+          return data;
         })
         .then((data) => {
-          if (data.users) {
+          if (data.users && data.users.length > 0) {
             setAgencyUsers(data.users);
             setSyncStatus("idle");
+            setSyncError(null);
+          } else {
+            setSyncStatus("error");
+            setSyncError("La API de GHL devolvió 0 usuarios. Revisa el Company ID.");
           }
         })
         .catch((err) => {
           console.error("Background sync error:", err);
           setSyncStatus("error");
+          setSyncError(err.message);
         });
     }
   }, [role]);
@@ -189,6 +198,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
         role={role}
         columnId={activeColumnId || ""}
         agencyUsers={agencyUsers}
+        syncError={syncError}
       />
     </>
   );
