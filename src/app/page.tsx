@@ -45,12 +45,25 @@ const DUMMY_TASKS = [
 export default async function Home({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined } }) {
   // Try to authenticate via URL parameter or headers
   // For dev testing outside iframe, we simulate a role
-  const mockRole = (searchParams.role as "agency" | "client") || "agency"; 
-
-  // In production, we'd fetch from DB:
-  // const supabase = await createClient();
-  // const { data: colData } = await supabase.from('columns').select('*');
-  // const { data: taskData } = await supabase.from('tasks').select('*, assignees:task_assignees(user:users(*))');
+  const mockRole = (searchParams?.role as "agency" | "client") || "agency"; 
+  
+  // In a real scenario we'd query the DB directly, but here we'll mock the hook 
+  // or fetch from our new API route. For Server Component:
+  const appUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+  
+  let agencyUsers = [];
+  try {
+    // Attempt to fetch from our new API to ensure they are synced
+    // Note: This requires the Next.js server to be running and GHL_API_KEY valid.
+    const res = await fetch(`${appUrl}/api/ghl/users`, { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      agencyUsers = data.users || [];
+    }
+  } catch (e) {
+    console.error("Could not fetch agency users during standard SSR render.");
+    // Fallback or empty state handled gracefully by component
+  }
 
   return (
     <main className="flex flex-col h-screen w-full">
@@ -80,6 +93,7 @@ export default async function Home({ searchParams }: { searchParams: { [key: str
           initialColumns={DUMMY_COLUMNS} 
           initialTasks={DUMMY_TASKS as any} 
           role={mockRole}
+          initialAgencyUsers={agencyUsers}
         />
       </div>
     </main>

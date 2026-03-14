@@ -14,7 +14,7 @@ import {
   DragEndEvent,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
-import { Column, Task } from "@/types/kanban";
+import { Column, Task, User } from "@/types/kanban";
 import { Column as BoardColumn } from "./Column";
 import { TaskCard } from "./TaskCard";
 import { CreateTaskModal } from "./CreateTaskModal";
@@ -23,12 +23,14 @@ interface KanbanBoardProps {
   initialColumns: Column[];
   initialTasks: Task[];
   role: "agency" | "client";
+  initialAgencyUsers?: User[];
 }
 
-export function KanbanBoard({ initialColumns, initialTasks, role }: KanbanBoardProps) {
+export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyUsers = [] }: KanbanBoardProps) {
   const [columns, setColumns] = useState<Column[]>(initialColumns);
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [agencyUsers, setAgencyUsers] = useState<User[]>(initialAgencyUsers);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -163,6 +165,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role }: KanbanBoardP
         onSubmit={handleCreateTask}
         role={role}
         columnId={activeColumnId || ""}
+        agencyUsers={agencyUsers}
       />
     </>
   );
