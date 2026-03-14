@@ -48,8 +48,14 @@ export async function GET(req: Request) {
     }
 
     const data = await response.json();
-    // GHL v2 returns users array inside the top level object
-    const users = data.users || [];
+    // Log the raw response for debugging
+    console.log("GHL raw response keys:", Object.keys(data));
+    console.log("GHL raw response:", JSON.stringify(data).slice(0, 500));
+    
+    // GHL /users/search may return users under different keys
+    // Try 'users', 'data', 'contacts', or direct array
+    const users = data.users || data.data || data.results || (Array.isArray(data) ? data : []);
+    console.log("Users found:", users.length);
 
     const supabase = await createClient();
 
