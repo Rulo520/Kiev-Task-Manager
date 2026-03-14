@@ -36,7 +36,8 @@ export async function GET(req: Request) {
       method: "GET",
       headers: {
         "Authorization": `Bearer ${GHL_ACCESS_TOKEN}`,
-        "Version": "2021-07-28", // Required Version header for GHL v2
+        "Version": "2021-07-28",
+        "Content-Type": "application/json",
         "Accept": "application/json"
       },
     });
