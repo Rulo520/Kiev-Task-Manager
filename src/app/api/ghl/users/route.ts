@@ -2,20 +2,20 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 const GHL_ACCESS_TOKEN = process.env.GHL_ACCESS_TOKEN;
-const GHL_LOCATION_ID = process.env.GHL_LOCATION_ID;
+const GHL_COMPANY_ID = process.env.GHL_COMPANY_ID;
 
 export async function GET(req: Request) {
   try {
-    if (!GHL_ACCESS_TOKEN || !GHL_LOCATION_ID) {
+    if (!GHL_ACCESS_TOKEN || !GHL_COMPANY_ID) {
       return NextResponse.json(
-        { error: "GHL_ACCESS_TOKEN or GHL_LOCATION_ID are not configured on the server." },
+        { error: "GHL_ACCESS_TOKEN or GHL_COMPANY_ID are not configured on the server." },
         { status: 500 }
       );
     }
 
-    // Call GHL v2 API (LeadConnector) to fetch users for the location
+    // Call GHL v2 API (LeadConnector) to fetch users for the agency (company)
     const url = new URL("https://services.leadconnectorhq.com/users/");
-    url.searchParams.append("locationId", GHL_LOCATION_ID);
+    url.searchParams.append("companyId", GHL_COMPANY_ID);
 
     const response = await fetch(url.toString(), {
       method: "GET",
