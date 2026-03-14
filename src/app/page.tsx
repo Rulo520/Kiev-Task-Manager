@@ -47,23 +47,14 @@ export default async function Home({ searchParams }: { searchParams: { [key: str
   // For dev testing outside iframe, we simulate a role
   const mockRole = (searchParams?.role as "agency" | "client") || "agency"; 
   
-  // In a real scenario we'd query the DB directly, but here we'll mock the hook 
-  // or fetch from our new API route. For Server Component:
-  const appUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-  
-  let agencyUsers = [];
-  try {
-    // Attempt to fetch from our new API to ensure they are synced
-    // Note: This requires the Next.js server to be running and GHL_API_KEY valid.
-    const res = await fetch(`${appUrl}/api/ghl/users`, { cache: 'no-store' });
-    if (res.ok) {
-      const data = await res.json();
-      agencyUsers = data.users || [];
-    }
-  } catch (e) {
-    console.error("Could not fetch agency users during standard SSR render.");
-    // Fallback or empty state handled gracefully by component
-  }
+  // Directly query the current synced users from Supabase for the initial render
+  const supabase = await createClient();
+  const { data: dbUsers } = await supabase
+    .from('users')
+    .select('*')
+    .eq('role', 'agency');
+    
+  const agencyUsers = dbUsers || [];
 
   return (
     <main className="flex flex-col h-screen w-full">

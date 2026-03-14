@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -31,6 +31,29 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [agencyUsers, setAgencyUsers] = useState<User[]>(initialAgencyUsers);
+  const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "error">("idle");
+
+  // Client-side background sync
+  useEffect(() => {
+    if (role === "agency") {
+      setSyncStatus("syncing");
+      fetch("/api/ghl/users")
+        .then((res) => {
+          if (!res.ok) throw new Error("Sync failed");
+          return res.json();
+        })
+        .then((data) => {
+          if (data.users) {
+            setAgencyUsers(data.users);
+            setSyncStatus("idle");
+          }
+        })
+        .catch((err) => {
+          console.error("Background sync error:", err);
+          setSyncStatus("error");
+        });
+    }
+  }, [role]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {

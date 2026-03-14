@@ -119,38 +119,48 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, role, columnId, age
             </div>
           </div>
 
-          {role === "agency" && agencyUsers.length > 0 && (
+          {role === "agency" && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
                 <UsersIcon className="w-4 h-4 mr-1 text-gray-400" />
                 Asignar Responsables
               </label>
-              <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 border border-gray-100 rounded-xl bg-gray-50/50">
-                {agencyUsers.map(user => {
-                  const isSelected = selectedAssignees.includes(user.id);
-                  return (
-                    <button
-                      key={user.id}
-                      type="button"
-                      onClick={() => toggleAssignee(user.id)}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                        isSelected 
-                          ? "bg-indigo-100 text-indigo-700 border-indigo-200 shadow-sm" 
-                          : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300"
-                      } border`}
-                    >
-                      {user.profile_pic ? (
-                        <Image src={user.profile_pic} alt={user.first_name || ""} width={16} height={16} className="rounded-full object-cover w-4 h-4" />
-                      ) : (
-                        <div className="w-4 h-4 rounded-full bg-indigo-500 text-white flex items-center justify-center text-[8px] font-bold">
-                          {user.first_name?.[0]}
-                        </div>
-                      )}
-                      {user.first_name} {user.last_name}
-                    </button>
-                  );
-                })}
-              </div>
+              
+              {agencyUsers && agencyUsers.length > 0 ? (
+                <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 border border-gray-100 rounded-xl bg-gray-50/50">
+                  {agencyUsers.map(user => {
+                    const isSelected = selectedAssignees.includes(user.id);
+                    return (
+                      <button
+                        key={user.id}
+                        type="button"
+                        onClick={() => toggleAssignee(user.id)}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                          isSelected 
+                            ? "bg-indigo-100 text-indigo-700 border-indigo-200 shadow-sm" 
+                            : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300"
+                        } border`}
+                      >
+                        {user.profile_pic ? (
+                          <Image src={user.profile_pic} alt={user.first_name || ""} width={16} height={16} className="rounded-full object-cover w-4 h-4" />
+                        ) : (
+                          <div className="w-4 h-4 rounded-full bg-indigo-500 text-white flex items-center justify-center text-[8px] font-bold">
+                            {user.first_name?.[0]}
+                          </div>
+                        )}
+                        {user.first_name} {user.last_name}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-xl flex items-start gap-2">
+                  <span className="shrink-0 text-amber-500">⚠️</span>
+                  <p>
+                    No se encontraron usuarios. Por favor, asegúrate de haber configurado exactamente <b>GHL_ACCESS_TOKEN</b> y <b>GHL_LOCATION_ID</b> en Vercel.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
