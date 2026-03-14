@@ -157,7 +157,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, role, columnId, age
                 <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-xl flex items-start gap-2">
                   <span className="shrink-0 text-amber-500">⚠️</span>
                   <p>
-                    No se encontraron usuarios. Por favor, asegúrate de haber configurado exactamente <b>GHL_ACCESS_TOKEN</b> y <b>GHL_COMPANY_ID</b> en Vercel.
+                    No se encontraron usuarios. Asegúrate de que configuraste <b>GHL_ACCESS_TOKEN</b> en Vercel y que el token sea válido.
                   </p>
                 </div>
               )}
