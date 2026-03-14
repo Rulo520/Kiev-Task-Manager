@@ -44,40 +44,47 @@ export async function GET(req: Request) {
 
     const supabase = await createClient();
 
-    // Sync users to our database
-    const upsertPromises = users.map((u: any) =>
-      supabase.from("users").upsert(
-        {
-          ghl_user_id: u.id,
-          email: u.email,
-          first_name: u.firstName || u.name?.split(' ')[0] || '',
-          last_name: u.lastName || u.name?.split(' ').slice(1).join(' ') || '',
-          role: "agency", // All fetched staff are agency members
-          profile_pic: u.profilePhoto || null,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "ghl_user_id" }
-      )
-    );
+    try {
+      // Sync users to our database
+      const upsertPromises = users.map((u: any) =>
+        supabase.from("users").upsert(
+          {
+            ghl_user_id: u.id,
+            email: u.email,
+            first_name: u.firstName || u.name?.split(' ')[0] || '',
+            last_name: u.lastName || u.name?.split(' ').slice(1).join(' ') || '',
+            role: "agency", // All fetched staff are agency members
+            profile_pic: u.profilePhoto || null,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "ghl_user_id" }
+        )
+      );
 
-    await Promise.all(upsertPromises);
+      await Promise.all(upsertPromises);
 
-    // Fetch the updated, normalized users from our database to return to the frontend
-    const { data: syncedUsers, error: dbError } = await supabase
-      .from("users")
-      .select("*")
-      .eq("role", "agency");
+      // Fetch the updated, normalized users from our database to return to the frontend
+      const { data: syncedUsers, error: dbError } = await supabase
+        .from("users")
+        .select("*")
+        .eq("role", "agency");
 
-    if (dbError) throw dbError;
+      if (dbError) throw dbError;
 
-    return NextResponse.json({ users: syncedUsers });
+      return NextResponse.json({ users: syncedUsers });
+    } catch (dbError: any) {
+      console.error("Supabase Sync Error:", dbError);
+      return NextResponse.json(
+        { error: "Failed to save users to database: " + dbError.message },
+        { status: 500 }
+      );
+    }
 
   } catch (error: any) {
     console.error("Fetch GHL Users Error:", error);
     return NextResponse.json(
-      { error: "Failed to fetch and sync GHL users. Ensure token is valid." },
+      { error: `GHL API Error: ${error.message || "Unknown error"}` },
       { status: 500 }
     );
   }
 }
-

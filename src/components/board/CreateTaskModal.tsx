@@ -154,11 +154,12 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, role, columnId, age
                   })}
                 </div>
               ) : (
-                <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-xl flex items-start gap-2">
-                  <span className="shrink-0 text-amber-500">⚠️</span>
-                  <p>
-                    No se encontraron usuarios. Asegúrate de que configuraste <b>GHL_ACCESS_TOKEN</b> en Vercel y que el token sea válido.
-                  </p>
+                <div className="p-3 bg-red-50 border border-red-200 text-red-800 text-xs rounded-xl flex items-start gap-2">
+                  <span className="shrink-0 text-red-500">❌</span>
+                  <div className="flex-1">
+                    <p className="font-semibold mb-1">Error de Sincronización GHL</p>
+                    <p>Revisa la respuesta del servidor para entender por qué el Token es rechazado. Si dice 'Unauthorized', el token expiró o le faltan Scopes (users.readonly).</p>
+                  </div>
                 </div>
               )}
             </div>
