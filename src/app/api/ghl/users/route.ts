@@ -74,12 +74,6 @@ export async function GET() {
       }, { status: 500 });
     }
 
-    // Fetch phase - check if we can see ANY user first (debug RLS)
-    const { data: anyUsers, error: anyError } = await supabase
-      .from("users")
-      .select("role")
-      .limit(10);
-
     // Final fetch for the frontend
     const { data: agencyUsers, error: dbError } = await supabase
       .from("users")
@@ -88,13 +82,10 @@ export async function GET() {
 
     if (dbError) throw dbError;
 
-    // Verbose return to identify where the leak is
     return NextResponse.json({ 
       users: agencyUsers,
-      total_in_ghl: allUsers.length,
-      visible_in_db: anyUsers?.length ?? 0,
-      agency_count: agencyUsers?.length ?? 0,
-      roles_found: Array.from(new Set(anyUsers?.map(u => u.role) || []))
+      total_synced: allUsers.length,
+      agency_count: agencyUsers?.length ?? 0
     });
 
   } catch (error: any) {
