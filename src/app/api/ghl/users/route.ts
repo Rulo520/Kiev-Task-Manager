@@ -13,17 +13,19 @@ export async function GET() {
       );
     }
 
-    // GHL v2 (LeadConnector) - Location-level user fetch
-    // Private Integration tokens are scoped to a Location, so we use:
-    // GET /users/?locationId=...
+    // GHL Private Integration tokens are scoped to the location where they were installed.
+    // The token itself determines which location's data to return.
+    // We optionally pass locationId if set, but also try without it.
     const url = new URL("https://services.leadconnectorhq.com/users/");
-    url.searchParams.append("locationId", GHL_LOCATION_ID);
+    if (GHL_LOCATION_ID) {
+      url.searchParams.append("locationId", GHL_LOCATION_ID);
+    }
 
     const response = await fetch(url.toString(), {
       method: "GET",
       headers: {
-        // GHL Private Integration tokens are sent WITHOUT "Bearer" prefix
-        "Authorization": GHL_ACCESS_TOKEN,
+        // GHL Private Integration tokens use Bearer prefix
+        "Authorization": `Bearer ${GHL_ACCESS_TOKEN}`,
         "Version": "2021-07-28",
         "Content-Type": "application/json",
         "Accept": "application/json"
