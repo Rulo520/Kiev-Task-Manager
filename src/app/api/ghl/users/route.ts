@@ -6,25 +6,21 @@ const GHL_LOCATION_ID = process.env.GHL_LOCATION_ID;
 
 export async function GET() {
   try {
-    if (!GHL_ACCESS_TOKEN) {
+    if (!GHL_ACCESS_TOKEN || !GHL_LOCATION_ID) {
       return NextResponse.json(
-        { error: "GHL_ACCESS_TOKEN is not configured on the server." },
+        { error: "Faltan variables de entorno en Vercel. Necesitás GHL_ACCESS_TOKEN y GHL_LOCATION_ID (el ID de la subcuenta donde instalaste la integración privada)." },
         { status: 500 }
       );
     }
 
-    // GHL Private Integration tokens are scoped to the location where they were installed.
-    // The token itself determines which location's data to return.
-    // We optionally pass locationId if set, but also try without it.
+    // GHL requires locationId - it must be the location where the Private Integration was installed
+    // Find it in GHL URL: gohighlevel.com/location/THIS_IS_THE_ID/...
     const url = new URL("https://services.leadconnectorhq.com/users/");
-    if (GHL_LOCATION_ID) {
-      url.searchParams.append("locationId", GHL_LOCATION_ID);
-    }
+    url.searchParams.append("locationId", GHL_LOCATION_ID);
 
     const response = await fetch(url.toString(), {
       method: "GET",
       headers: {
-        // GHL Private Integration tokens use Bearer prefix
         "Authorization": `Bearer ${GHL_ACCESS_TOKEN}`,
         "Version": "2021-07-28",
         "Content-Type": "application/json",
