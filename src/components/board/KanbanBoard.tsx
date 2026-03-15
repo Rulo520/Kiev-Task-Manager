@@ -19,7 +19,6 @@ import { Column as BoardColumn } from "./Column";
 import { TaskCard } from "./TaskCard";
 import { CreateTaskModal } from "./CreateTaskModal";
 import { createClient } from "@/lib/supabase/client";
-import { Wifi, WifiOff, Loader2 } from "lucide-react";
 
 interface KanbanBoardProps {
   initialColumns: Column[];
@@ -38,10 +37,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
   
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [agencyUsers, setAgencyUsers] = useState<User[]>(initialAgencyUsers);
-  
   const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "error">("idle");
-  const [realtimeConnected, setRealtimeConnected] = useState<"connecting" | "connected" | "error">("connecting");
-  const [lastEvent, setLastEvent] = useState<string>("Ninguno");
   const [syncError, setSyncError] = useState<string | null>(null);
 
   const supabase = useRef(createClient()).current; 
@@ -71,9 +67,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
 
   useEffect(() => {
     console.log("Setting up Realtime subscription...");
-    setRealtimeConnected("connecting");
 
-    // Listen to ALL changes in the tasks table without strict schema prefix if possible
     const channel = supabase
       .channel("tasks-realtime")
       .on(
@@ -81,7 +75,6 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
         { event: "*", schema: "public", table: "tasks" },
         async (payload) => {
           console.log("🔥 DB CHANGE DETECTED:", payload);
-          setLastEvent(`DB: ${payload.eventType} @ ${new Date().toLocaleTimeString()}`);
           
           if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
             const id = (payload.new as { id: string }).id;
@@ -97,64 +90,12 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
           }
         }
       )
-      .on(
-        "broadcast",
-        { event: "test-broadcast" },
-        (payload) => {
-          console.log("📡 BROADCAST RECEIVED:", payload);
-          setLastEvent(`BROADCAST: ${payload.payload.msg} @ ${new Date().toLocaleTimeString()}`);
-        }
-      )
-      .subscribe((status) => {
-        console.log("📡 Subscription Status:", status);
-        setRealtimeConnected(status === "SUBSCRIBED" ? "connected" : status === "CHANNEL_ERROR" ? "error" : "connecting");
-      });
+      .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
   }, [supabase, fetchTaskDetails]);
-
-  const [testResult, setTestResult] = useState<string | null>(null);
-  
-  const runConnectionTest = async () => {
-    setTestResult("Probando...");
-    try {
-      const { data, error } = await supabase.from('tasks').select('id').limit(1);
-      if (error) {
-        setTestResult(`❌ Error de RLS/Permisos: ${error.message}`);
-        return;
-      }
-      if (data) {
-        setTestResult(`✅ Lectura OK. El problema es la REPLICACIÓN.`);
-      }
-    } catch (err: unknown) {
-      setTestResult(`❌ Error fatal: ${(err as Error).message}`);
-    }
-  };
-
-  const sendTestBroadcast = async () => {
-    console.log("Enviando broadcast...");
-    setLastEvent("Enviando broadcast...");
-    
-    // Create a one-off channel for the test to ensure it's clean
-    const testChannel = supabase.channel('sync-test');
-    await testChannel.subscribe(async (status) => {
-      if (status === 'SUBSCRIBED') {
-        await testChannel.send({
-          type: 'broadcast',
-          event: 'test-broadcast',
-          payload: { msg: 'MAGIC_SYNC_OK' },
-        });
-        // We leave it open briefly then cleanup if needed, but for the test it's fine
-      }
-    });
-  };
-
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
-  useEffect(() => {
-    channelRef.current = supabase.channel('public-tasks');
-  }, [supabase]);
 
   useEffect(() => {
     if (role === "agency") {
@@ -304,49 +245,6 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
 
   return (
     <div className="flex flex-col h-full bg-slate-50/50">
-      <div className="px-8 py-2 bg-white/80 backdrop-blur-sm border-b border-gray-100 flex items-center justify-between text-[11px] font-medium text-gray-500">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1.5">
-            {realtimeConnected === "connected" ? (
-              <span className="flex items-center gap-1 text-emerald-600"><Wifi size={12} /> Sync Live</span>
-            ) : realtimeConnected === "connecting" ? (
-              <span className="flex items-center gap-1 text-amber-500"><Loader2 size={12} className="animate-spin" /> Conectando...</span>
-            ) : (
-              <span className="flex items-center gap-1 text-red-500"><WifiOff size={12} /> Sync Offline (Enable Replication!)</span>
-            )}
-          </div>
-          <div className="h-3 w-px bg-gray-200" />
-          <div className="flex items-center gap-1.5">
-            Estado: <span className={syncStatus === "error" ? "text-red-500" : "text-gray-900"}>{syncStatus.toUpperCase()}</span>
-          </div>
-          <div className="h-3 w-px bg-gray-200" />
-          <div className="flex items-center gap-1.5">
-            Último Evento: <span className="text-gray-900 bg-gray-100 px-1.5 py-0.5 rounded font-mono">{lastEvent}</span>
-          </div>
-          <div className="h-3 w-px bg-gray-200" />
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={runConnectionTest}
-              className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100 transition-colors border border-indigo-100 font-bold"
-            >
-              {testResult || "1. Verificar Lectura"}
-            </button>
-            <button 
-              onClick={sendTestBroadcast}
-              className="px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded hover:bg-emerald-100 transition-colors border border-emerald-100 font-bold"
-            >
-              2. Probar Broadcast
-            </button>
-          </div>
-        </div>
-        
-        {realtimeConnected === "error" && (
-          <div className="bg-red-50 px-2 py-0.5 rounded text-red-600 font-bold border border-red-100">
-            TIP: Run &quot;ALTER PUBLICATION supabase_realtime ADD TABLE tasks;&quot; in SQL Editor
-          </div>
-        )}
-      </div>
-
       <div className="flex-1 flex overflow-x-auto p-4 md:p-8 custom-scrollbar">
         <DndContext
           sensors={sensors}
