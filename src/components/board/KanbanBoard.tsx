@@ -57,7 +57,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
             setSyncError(null);
           } else {
             setSyncStatus("error");
-            setSyncError("GHL devolvió 0 usuarios con el Location ID configurado. Verifica que el token tenga el scope 'Users > Read' en GHL > Settings > Integrations > Private Integrations.");
+            setSyncError("GHL devolvió 0 usuarios. Verificá que GHL_COMPANY_ID y GHL_ACCESS_TOKEN (token de Agencia) estén correctamente configurados en Vercel.");
           }
         })
         .catch((err) => {
