@@ -41,7 +41,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
   const [lastEvent, setLastEvent] = useState<string>("Ninguno");
   const [syncError, setSyncError] = useState<string | null>(null);
 
-  const supabase = createClient();
+  const supabase = useRef(createClient()).current; // Persistent client
 
   // Keep Ref in sync with state
   useEffect(() => {
