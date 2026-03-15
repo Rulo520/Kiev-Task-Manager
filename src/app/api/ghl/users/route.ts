@@ -13,8 +13,6 @@ export async function GET() {
       );
     }
 
-    // Agency-level Private Integration token + /users/search?companyId= 
-    // returns ALL users across the agency (both agency staff and client users)
     const url = new URL("https://services.leadconnectorhq.com/users/search");
     url.searchParams.append("companyId", GHL_COMPANY_ID);
 
@@ -38,18 +36,18 @@ export async function GET() {
 
     if (allUsers.length === 0) {
       return NextResponse.json(
-        { error: "GHL no devolvió usuarios. Verificá que GHL_COMPANY_ID y el token de Agencia sean correctos." },
+        { error: `GHL devolvió 0 usuarios para la compañía ${GHL_COMPANY_ID}. Revisá que el token de agencia sea correcto.` },
         { status: 200 }
       );
     }
 
     const supabase = await createClient();
 
-    // Distinguish agency staff from client users based on GHL roles.type
-    // roles.type: "agency" → Casa Kiev team members
-    // roles.type: "account" → Client sub-account users
+    // Sync phase
     const upsertPromises = allUsers.map((u: any) => {
+      // In the debug dump we saw u.roles.type can be "agency" or "account"
       const isAgencyUser = u.roles?.type === "agency";
+      
       return supabase.from("users").upsert(
         {
           ghl_user_id: u.id,
@@ -64,9 +62,25 @@ export async function GET() {
       );
     });
 
-    await Promise.all(upsertPromises);
+    const results = await Promise.all(upsertPromises);
+    const errors = results.filter(r => r.error);
+    
+    if (errors.length > 0) {
+      console.error("Supabase Upsert Errors:", errors[0].error);
+      // If we have errors, it might be due to RLS or schema issues
+      return NextResponse.json({ 
+        error: `Error al guardar en base de datos: ${errors[0].error?.message}. Posiblemente RLS esté activo.`,
+        details: errors[0].error
+      }, { status: 500 });
+    }
 
-    // Return only agency users to the frontend (for task assignment)
+    // Fetch phase - check if we can see ANY user first (debug RLS)
+    const { data: anyUsers, error: anyError } = await supabase
+      .from("users")
+      .select("role")
+      .limit(10);
+
+    // Final fetch for the frontend
     const { data: agencyUsers, error: dbError } = await supabase
       .from("users")
       .select("*")
@@ -74,10 +88,13 @@ export async function GET() {
 
     if (dbError) throw dbError;
 
+    // Verbose return to identify where the leak is
     return NextResponse.json({ 
       users: agencyUsers,
-      total_synced: allUsers.length,
-      agency_count: agencyUsers?.length ?? 0
+      total_in_ghl: allUsers.length,
+      visible_in_db: anyUsers?.length ?? 0,
+      agency_count: agencyUsers?.length ?? 0,
+      roles_found: Array.from(new Set(anyUsers?.map(u => u.role) || []))
     });
 
   } catch (error: any) {
