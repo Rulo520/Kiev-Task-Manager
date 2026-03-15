@@ -2,35 +2,22 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 const GHL_ACCESS_TOKEN = process.env.GHL_ACCESS_TOKEN;
-const GHL_COMPANY_ID = process.env.GHL_COMPANY_ID;
 const GHL_LOCATION_ID = process.env.GHL_LOCATION_ID;
 
-export async function GET(req: Request) {
+export async function GET() {
   try {
-    if (!GHL_ACCESS_TOKEN) {
+    if (!GHL_ACCESS_TOKEN || !GHL_LOCATION_ID) {
       return NextResponse.json(
-        { error: "GHL_ACCESS_TOKEN is not configured on the server." },
+        { error: "GHL_ACCESS_TOKEN or GHL_LOCATION_ID are not configured on the server." },
         { status: 500 }
       );
     }
 
-    // Call GHL v2 API (LeadConnector) to fetch users
-    // According to GHL Docs V2:
-    // - Agency Level uses: /users/search?companyId=...
-    // - Location Level uses: /users/?locationId=...
-    let urlString = "https://services.leadconnectorhq.com/users/";
-    
-    if (GHL_COMPANY_ID) {
-      urlString = "https://services.leadconnectorhq.com/users/search";
-    }
-
-    const url = new URL(urlString);
-    
-    if (GHL_COMPANY_ID) {
-      url.searchParams.append("companyId", GHL_COMPANY_ID);
-    } else if (GHL_LOCATION_ID) {
-      url.searchParams.append("locationId", GHL_LOCATION_ID);
-    }
+    // GHL v2 (LeadConnector) - Location-level user fetch
+    // Private Integration tokens are scoped to a Location, so we use:
+    // GET /users/?locationId=...
+    const url = new URL("https://services.leadconnectorhq.com/users/");
+    url.searchParams.append("locationId", GHL_LOCATION_ID);
 
     const response = await fetch(url.toString(), {
       method: "GET",
@@ -44,62 +31,53 @@ export async function GET(req: Request) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("GHL API Error Response:", errorText);
-      throw new Error(`GHL API responded with status ${response.status}`);
+      console.error("GHL API Error:", response.status, errorText);
+      throw new Error(`GHL API responded with status ${response.status}: ${errorText}`);
     }
 
     const data = await response.json();
-    // Log the raw response for debugging
-    console.log("GHL raw response keys:", Object.keys(data));
-    console.log("GHL raw response:", JSON.stringify(data).slice(0, 500));
-    
-    // GHL /users/search may return users under different keys
-    // Try 'users', 'data', 'contacts', or direct array
-    const users = data.users || data.data || data.results || (Array.isArray(data) ? data : []);
-    console.log("Users found:", users.length);
+    const users = data.users || [];
 
-    const supabase = await createClient();
-
-    try {
-      // Sync users to our database
-      const upsertPromises = users.map((u: any) =>
-        supabase.from("users").upsert(
-          {
-            ghl_user_id: u.id,
-            email: u.email,
-            first_name: u.firstName || u.name?.split(' ')[0] || '',
-            last_name: u.lastName || u.name?.split(' ').slice(1).join(' ') || '',
-            role: "agency", // All fetched staff are agency members
-            profile_pic: u.profilePhoto || null,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "ghl_user_id" }
-        )
-      );
-
-      await Promise.all(upsertPromises);
-
-      // Fetch the updated, normalized users from our database to return to the frontend
-      const { data: syncedUsers, error: dbError } = await supabase
-        .from("users")
-        .select("*")
-        .eq("role", "agency");
-
-      if (dbError) throw dbError;
-
-      return NextResponse.json({ users: syncedUsers });
-    } catch (dbError: any) {
-      console.error("Supabase Sync Error:", dbError);
+    if (users.length === 0) {
       return NextResponse.json(
-        { error: "Failed to save users to database: " + dbError.message },
-        { status: 500 }
+        { error: "La API de GHL devolvió 0 usuarios. Verifica que GHL_LOCATION_ID sea correcto y que el token tenga el scope 'Users > Read'." },
+        { status: 200 }
       );
     }
 
+    const supabase = await createClient();
+
+    // Sync users into Supabase
+    const upsertPromises = users.map((u: any) =>
+      supabase.from("users").upsert(
+        {
+          ghl_user_id: u.id,
+          email: u.email,
+          first_name: u.firstName || u.name?.split(" ")[0] || "",
+          last_name: u.lastName || u.name?.split(" ").slice(1).join(" ") || "",
+          role: "agency",
+          profile_pic: u.profilePhoto || null,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "ghl_user_id" }
+      )
+    );
+
+    await Promise.all(upsertPromises);
+
+    const { data: syncedUsers, error: dbError } = await supabase
+      .from("users")
+      .select("*")
+      .eq("role", "agency");
+
+    if (dbError) throw dbError;
+
+    return NextResponse.json({ users: syncedUsers });
+
   } catch (error: any) {
-    console.error("Fetch GHL Users Error:", error);
+    console.error("GHL Users Sync Error:", error);
     return NextResponse.json(
-      { error: `GHL API Error: ${error.message || "Unknown error"}` },
+      { error: error.message || "Failed to sync GHL users." },
       { status: 500 }
     );
   }
