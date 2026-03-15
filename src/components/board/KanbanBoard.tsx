@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -19,6 +19,7 @@ import { Column as BoardColumn } from "./Column";
 import { TaskCard } from "./TaskCard";
 import { CreateTaskModal } from "./CreateTaskModal";
 import { createClient } from "@/lib/supabase/client";
+import { Wifi, WifiOff, Loader2 } from "lucide-react";
 
 interface KanbanBoardProps {
   initialColumns: Column[];
@@ -30,12 +31,21 @@ interface KanbanBoardProps {
 export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyUsers = [] }: KanbanBoardProps) {
   const [columns] = useState<Column[]>(initialColumns);
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const tasksRef = useRef<Task[]>(initialTasks); // Ref to always have the LATEST tasks for events
+  
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [agencyUsers, setAgencyUsers] = useState<User[]>(initialAgencyUsers);
-  const [, setSyncStatus] = useState<"idle" | "syncing" | "error">("idle");
+  
+  const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "error">("idle");
+  const [realtimeConnected, setRealtimeConnected] = useState<"connecting" | "connected" | "error">("connecting");
   const [syncError, setSyncError] = useState<string | null>(null);
 
   const supabase = createClient();
+
+  // Keep Ref in sync with state
+  useEffect(() => {
+    tasksRef.current = tasks;
+  }, [tasks]);
 
   // Helper to fetch full task details (including assignees)
   const fetchTaskDetails = useCallback(async (taskId: string) => {
@@ -50,19 +60,25 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
       .eq("id", taskId)
       .single();
     
-    if (error) console.error("Error fetching task details:", error);
+    if (error) {
+      console.error("Error fetching task details:", error);
+      return null;
+    }
     return data as unknown as Task;
   }, [supabase]);
 
   // Real-time listener for tasks
   useEffect(() => {
+    console.log("Setting up Realtime subscription...");
+    setRealtimeConnected("connecting");
+
     const channel = supabase
       .channel("tasks-db-changes")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "tasks" },
         async (payload) => {
-          console.log("Realtime Change:", payload);
+          console.log("🔔 Realtime Payload Received:", payload);
           
           if (payload.eventType === "INSERT") {
             const newTask = await fetchTaskDetails(payload.new.id);
@@ -84,7 +100,14 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log("📡 Subscription Status:", status);
+        if (status === "SUBSCRIBED") {
+          setRealtimeConnected("connected");
+        } else if (status === "CLOSED" || status === "CHANNEL_ERROR") {
+          setRealtimeConnected("error");
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
@@ -98,19 +121,13 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
       fetch("/api/ghl/users")
         .then(async (res) => {
           const data = await res.json();
-          if (!res.ok) {
-            throw new Error(data.error || "Sync failed");
-          }
+          if (!res.ok) throw new Error(data.error || "Sync failed");
           return data;
         })
         .then((data) => {
-          if (data.error) {
-            setSyncStatus("error");
-            setSyncError(data.error);
-          } else if (data.users && data.users.length > 0) {
+          if (data.users && data.users.length > 0) {
             setAgencyUsers(data.users);
             setSyncStatus("idle");
-            setSyncError(null);
           }
         })
         .catch((err) => {
@@ -122,12 +139,8 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
   }, [role]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 5 },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -136,7 +149,6 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
   function onDragStart(event: DragStartEvent) {
     if (event.active.data.current?.type === "Task") {
       setActiveTask(event.active.data.current.task);
-      return;
     }
   }
 
@@ -157,17 +169,12 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
       const response = await fetch("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...taskData,
-          column_id: activeColumnId
-        })
+        body: JSON.stringify({ ...taskData, column_id: activeColumnId })
       });
 
       if (!response.ok) throw new Error("Failed to save task");
-      
       const savedTask = await response.json();
       
-      // Update local state (Realtime handles this too, but we do it for immediate feedback)
       setTasks((prev) => {
         if (prev.find(t => t.id === savedTask.id)) return prev;
         return [...prev, savedTask];
@@ -177,20 +184,17 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
       setActiveColumnId(null);
       setSyncStatus("idle");
     } catch (error: unknown) {
-      const err = error as Error;
-      console.error("Error creating task:", err);
-      setSyncError("Error al guardar la tarea en la base de datos.");
+      console.error("Error creating task:", error);
+      setSyncError("Error al guardar la tarea.");
       setSyncStatus("error");
     }
   }
 
-  function onDragOver(event: DragOverEvent) {
+  const onDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
     if (!over) return;
-
     const activeId = active.id;
     const overId = over.id;
-
     if (activeId === overId) return;
 
     const isActiveTask = active.data.current?.type === "Task";
@@ -199,65 +203,89 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
 
     if (!isActiveTask) return;
 
-    if (isActiveTask && isOverTask) {
-      setTasks((tasks) => {
-        const activeIndex = tasks.findIndex((t) => t.id === activeId);
-        const overIndex = tasks.findIndex((t) => t.id === overId);
+    setTasks((prevTasks) => {
+      const activeIndex = prevTasks.findIndex((t) => t.id === activeId);
+      if (activeIndex === -1) return prevTasks;
 
-        if (tasks[activeIndex].column_id !== tasks[overIndex].column_id) {
-          const newTasks = [...tasks];
-          newTasks[activeIndex].column_id = tasks[overIndex].column_id;
-          return newTasks;
+      const newTasks = [...prevTasks];
+      const task = { ...newTasks[activeIndex] };
+
+      if (isOverTask) {
+        const overIndex = prevTasks.findIndex((t) => t.id === overId);
+        if (task.column_id !== prevTasks[overIndex].column_id) {
+          task.column_id = prevTasks[overIndex].column_id;
+          newTasks[activeIndex] = task;
+        } else {
+          // Reorder same column
+          const [moved] = newTasks.splice(activeIndex, 1);
+          newTasks.splice(overIndex, 0, moved);
         }
+      } else if (isOverColumn) {
+        task.column_id = overId as string;
+        newTasks[activeIndex] = task;
+      }
 
-        const newTasks = [...tasks];
-        const [movedTask] = newTasks.splice(activeIndex, 1);
-        newTasks.splice(overIndex, 0, movedTask);
-        return newTasks;
-      });
-    }
-
-    if (isActiveTask && isOverColumn) {
-      setTasks((tasks) => {
-        const activeIndex = tasks.findIndex((t) => t.id === activeId);
-        const newTasks = [...tasks];
-        newTasks[activeIndex].column_id = overId as string;
-        return newTasks;
-      });
-    }
-  }
+      return newTasks;
+    });
+  };
 
   async function onDragEnd(event: DragEndEvent) {
     setActiveTask(null);
     const { active, over } = event;
     if (!over) return;
 
-    const activeId = active.id;
-    
-    // Crucial: access the LATEST state by using a temporary reference 
-    // or relying on the state update from onDragOver having completed.
-    // In onDragEnd, 'tasks' reflects the state AFTER onDragOver modifications.
-    const movedTask = tasks.find(t => t.id === activeId);
+    // USE THE REF: Always get the latest task state for persistence
+    const movedTask = tasksRef.current.find(t => t.id === active.id);
     if (!movedTask) return;
 
+    console.log("💾 Persisting task movement:", movedTask.title, "to", movedTask.column_id);
+
     try {
-      await fetch("/api/tasks", {
+      setSyncStatus("syncing");
+      const res = await fetch("/api/tasks", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id: movedTask.id,
           column_id: movedTask.column_id,
-          // Position could be added here if we track numerical order
         })
       });
+      if (!res.ok) throw new Error("Persistence failed");
+      setSyncStatus("idle");
     } catch (err) {
-      console.error("Error saving task position:", err);
+      console.error("Error saving position:", err);
+      setSyncStatus("error");
     }
   }
 
   return (
-    <>
-      <div className="flex h-full w-full overflow-x-auto p-4 md:p-8 custom-scrollbar">
+    <div className="flex flex-col h-full bg-slate-50/50">
+      {/* Mini Diagnostic Bar */}
+      <div className="px-8 py-2 bg-white/80 backdrop-blur-sm border-b border-gray-100 flex items-center justify-between text-[11px] font-medium text-gray-500">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5">
+            {realtimeConnected === "connected" ? (
+              <span className="flex items-center gap-1 text-emerald-600"><Wifi size={12} /> Sync Live</span>
+            ) : realtimeConnected === "connecting" ? (
+              <span className="flex items-center gap-1 text-amber-500"><Loader2 size={12} className="animate-spin" /> Conectando...</span>
+            ) : (
+              <span className="flex items-center gap-1 text-red-500"><WifiOff size={12} /> Sync Offline (Enable Replication!)</span>
+            )}
+          </div>
+          <div className="h-3 w-px bg-gray-200" />
+          <div className="flex items-center gap-1.5">
+            Estado: <span className={syncStatus === "error" ? "text-red-500" : "text-gray-900"}>{syncStatus.toUpperCase()}</span>
+          </div>
+        </div>
+        
+        {realtimeConnected === "error" && (
+          <div className="bg-red-50 px-2 py-0.5 rounded text-red-600 font-bold border border-red-100">
+            TIP: Run &quot;ALTER PUBLICATION supabase_realtime ADD TABLE tasks;&quot; in SQL Editor
+          </div>
+        )}
+      </div>
+
+      <div className="flex-1 flex overflow-x-auto p-4 md:p-8 custom-scrollbar">
         <DndContext
           sensors={sensors}
           collisionDetection={closestCorners}
@@ -291,6 +319,6 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
         agencyUsers={agencyUsers}
         syncError={syncError}
       />
-    </>
+    </div>
   );
 }
