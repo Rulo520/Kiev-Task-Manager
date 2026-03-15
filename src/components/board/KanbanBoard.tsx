@@ -47,13 +47,17 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
           return data;
         })
         .then((data) => {
-          if (data.users && data.users.length > 0) {
+          // API may return 200 with error field if GHL gave 0 users
+          if (data.error) {
+            setSyncStatus("error");
+            setSyncError(data.error);
+          } else if (data.users && data.users.length > 0) {
             setAgencyUsers(data.users);
             setSyncStatus("idle");
             setSyncError(null);
           } else {
             setSyncStatus("error");
-            setSyncError("La API de GHL devolvió 0 usuarios. Revisa el Company ID.");
+            setSyncError("GHL devolvió 0 usuarios con el Location ID configurado. Verifica que el token tenga el scope 'Users > Read' en GHL > Settings > Integrations > Private Integrations.");
           }
         })
         .catch((err) => {
