@@ -79,8 +79,8 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
         "postgres_changes",
         { event: "*", schema: "public", table: "tasks" },
         async (payload) => {
-          console.log("🔥 REALTIME EVENT DETECTED:", payload.eventType, payload);
-          setLastEvent(`${payload.eventType} @ ${new Date().toLocaleTimeString()}`);
+          console.log("🔥 REALTIME POSTGRES EVENT:", payload);
+          setLastEvent(`DB: ${payload.eventType} @ ${new Date().toLocaleTimeString()}`);
           
           if (payload.eventType === "INSERT") {
             const newTask = await fetchTaskDetails(payload.new.id);
@@ -101,6 +101,14 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
           } else if (payload.eventType === "DELETE") {
             setTasks((prev) => prev.filter(t => t.id !== payload.old.id));
           }
+        }
+      )
+      .on(
+        "broadcast",
+        { event: "test-broadcast" },
+        (payload) => {
+          console.log("📡 BROADCAST RECEIVED:", payload);
+          setLastEvent(`BROADCAST: ${payload.payload.msg} @ ${new Date().toLocaleTimeString()}`);
         }
       )
       .subscribe((status, err) => {
@@ -129,12 +137,26 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
         return;
       }
       if (data) {
-        setTestResult(`✅ Lectura OK (${data.length} tareas encontradas). El problema es la REPLICACIÓN.`);
+        setTestResult(`✅ Lectura OK. El problema es la REPLICACIÓN.`);
       }
     } catch (err: unknown) {
       setTestResult(`❌ Error fatal: ${(err as Error).message}`);
     }
   };
+
+  const sendTestBroadcast = async () => {
+    setLastEvent("Enviando broadcast...");
+    await channelRef.current?.send({
+      type: 'broadcast',
+      event: 'test-broadcast',
+      payload: { msg: 'MAGIC_SYNC_TEST' },
+    });
+  };
+
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  useEffect(() => {
+    channelRef.current = supabase.channel('public-tasks');
+  }, [supabase]);
 
   useEffect(() => {
     if (role === "agency") {
@@ -304,12 +326,20 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
             Último Evento: <span className="text-gray-900 bg-gray-100 px-1.5 py-0.5 rounded font-mono">{lastEvent}</span>
           </div>
           <div className="h-3 w-px bg-gray-200" />
-          <button 
-            onClick={runConnectionTest}
-            className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100 transition-colors border border-indigo-100 font-bold"
-          >
-            {testResult || "Verificar Conexión"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={runConnectionTest}
+              className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100 transition-colors border border-indigo-100 font-bold"
+            >
+              {testResult || "1. Verificar Lectura"}
+            </button>
+            <button 
+              onClick={sendTestBroadcast}
+              className="px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded hover:bg-emerald-100 transition-colors border border-emerald-100 font-bold"
+            >
+              2. Probar Broadcast
+            </button>
+          </div>
         </div>
         
         {realtimeConnected === "error" && (
