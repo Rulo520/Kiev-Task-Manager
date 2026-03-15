@@ -73,30 +73,24 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
     console.log("Setting up Realtime subscription...");
     setRealtimeConnected("connecting");
 
+    // Listen to ALL changes in the tasks table without strict schema prefix if possible
     const channel = supabase
-      .channel("public-tasks")
+      .channel("tasks-realtime")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "tasks" },
         async (payload) => {
-          console.log("🔥 REALTIME POSTGRES EVENT:", payload);
+          console.log("🔥 DB CHANGE DETECTED:", payload);
           setLastEvent(`DB: ${payload.eventType} @ ${new Date().toLocaleTimeString()}`);
           
-          if (payload.eventType === "INSERT") {
-            const newTask = await fetchTaskDetails(payload.new.id);
-            if (newTask) {
-              setTasks((prev) => {
-                if (prev.find(t => t.id === newTask.id)) return prev;
-                return [...prev, newTask].sort((a, b) => (a.position - b.position) || (a.id > b.id ? 1 : -1));
-              });
-            }
-          } else if (payload.eventType === "UPDATE") {
-            const updatedTask = await fetchTaskDetails(payload.new.id);
+          if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
+            const id = (payload.new as { id: string }).id;
+            const updatedTask = await fetchTaskDetails(id);
             if (updatedTask) {
-              setTasks((prev) => 
-                prev.map(t => t.id === updatedTask.id ? updatedTask : t)
-                    .sort((a, b) => (a.position - b.position) || (a.id > b.id ? 1 : -1))
-              );
+              setTasks((prev) => {
+                const filtered = prev.filter(t => t.id !== id);
+                return [...filtered, updatedTask].sort((a, b) => (a.position - b.position) || (a.id > b.id ? 1 : -1));
+              });
             }
           } else if (payload.eventType === "DELETE") {
             setTasks((prev) => prev.filter(t => t.id !== payload.old.id));
@@ -111,14 +105,9 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
           setLastEvent(`BROADCAST: ${payload.payload.msg} @ ${new Date().toLocaleTimeString()}`);
         }
       )
-      .subscribe((status, err) => {
-        console.log("📡 Channel Status Changed:", status, err);
-        if (status === "SUBSCRIBED") {
-          setRealtimeConnected("connected");
-        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          setRealtimeConnected("error");
-          console.error("Realtime connection failed:", status, err);
-        }
+      .subscribe((status) => {
+        console.log("📡 Subscription Status:", status);
+        setRealtimeConnected(status === "SUBSCRIBED" ? "connected" : status === "CHANNEL_ERROR" ? "error" : "connecting");
       });
 
     return () => {
@@ -145,11 +134,20 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
   };
 
   const sendTestBroadcast = async () => {
+    console.log("Enviando broadcast...");
     setLastEvent("Enviando broadcast...");
-    await channelRef.current?.send({
-      type: 'broadcast',
-      event: 'test-broadcast',
-      payload: { msg: 'MAGIC_SYNC_TEST' },
+    
+    // Create a one-off channel for the test to ensure it's clean
+    const testChannel = supabase.channel('sync-test');
+    await testChannel.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        await testChannel.send({
+          type: 'broadcast',
+          event: 'test-broadcast',
+          payload: { msg: 'MAGIC_SYNC_OK' },
+        });
+        // We leave it open briefly then cleanup if needed, but for the test it's fine
+      }
     });
   };
 
