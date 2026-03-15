@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
 
 const GHL_ACCESS_TOKEN = process.env.GHL_ACCESS_TOKEN;
 const GHL_COMPANY_ID = process.env.GHL_COMPANY_ID;
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+// Use SERVICE_ROLE_KEY to bypass RLS for server-side syncing
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 export async function GET() {
   try {
@@ -12,6 +15,22 @@ export async function GET() {
         { status: 500 }
       );
     }
+
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      return NextResponse.json(
+        { error: "Faltan variables de Supabase configuradas." },
+        { status: 500 }
+      );
+    }
+
+    // Initialize a dedicated server-side client that can bypass RLS 
+    // (if SUPABASE_SERVICE_ROLE_KEY is provided in Vercel)
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    });
 
     const url = new URL("https://services.leadconnectorhq.com/users/search");
     url.searchParams.append("companyId", GHL_COMPANY_ID);
@@ -36,18 +55,14 @@ export async function GET() {
 
     if (allUsers.length === 0) {
       return NextResponse.json(
-        { error: `GHL devolvió 0 usuarios para la compañía ${GHL_COMPANY_ID}. Revisá que el token de agencia sea correcto.` },
+        { error: `GHL devolvió 0 usuarios para la compañía ${GHL_COMPANY_ID}.` },
         { status: 200 }
       );
     }
 
-    const supabase = await createClient();
-
-    // Sync phase
+    // Sync phase using the elevated permissions client
     const upsertPromises = allUsers.map((u: any) => {
-      // In the debug dump we saw u.roles.type can be "agency" or "account"
       const isAgencyUser = u.roles?.type === "agency";
-      
       return supabase.from("users").upsert(
         {
           ghl_user_id: u.id,
@@ -63,24 +78,25 @@ export async function GET() {
     });
 
     const results = await Promise.all(upsertPromises);
-    const errors = results.filter(r => r.error);
+    const dbErrors = results.filter(r => r.error);
     
-    if (errors.length > 0) {
-      console.error("Supabase Upsert Errors:", errors[0].error);
-      // If we have errors, it might be due to RLS or schema issues
+    if (dbErrors.length > 0) {
+      console.error("Supabase Upsert Error:", dbErrors[0].error);
+      const isRLS = dbErrors[0].error?.message?.includes("row-level security");
       return NextResponse.json({ 
-        error: `Error al guardar en base de datos: ${errors[0].error?.message}. Posiblemente RLS esté activo.`,
-        details: errors[0].error
+        error: isRLS 
+          ? "Permiso denegado en Supabase (RLS). Por favor, agrega la variable 'SUPABASE_SERVICE_ROLE_KEY' en Vercel." 
+          : `Error de base de datos: ${dbErrors[0].error?.message}`
       }, { status: 500 });
     }
 
-    // Final fetch for the frontend
-    const { data: agencyUsers, error: dbError } = await supabase
+    // Final fetch for the frontend (this specifically needs to see the users)
+    const { data: agencyUsers, error: fetchError } = await supabase
       .from("users")
       .select("*")
       .eq("role", "agency");
 
-    if (dbError) throw dbError;
+    if (fetchError) throw fetchError;
 
     return NextResponse.json({ 
       users: agencyUsers,
