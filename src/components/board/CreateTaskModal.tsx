@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { X, Calendar, Flag, UserPlus, Loader2, AlertCircle } from "lucide-react";
-import { User, Role } from "@/types/kanban";
+import { X, Calendar, Flag, UserPlus, Loader2, AlertCircle, Tag } from "lucide-react";
+import { User, Role, Label } from "@/types/kanban";
 
 interface CreateTaskModalProps {
   isOpen: boolean;
@@ -13,11 +13,13 @@ interface CreateTaskModalProps {
     priority: "low" | "medium" | "high" | "urgent";
     due_date: string | null;
     assignees: string[];
+    labels: string[];
   }) => void;
   role: Role;
   columnId: string;
   agencyUsers: User[];
   syncError: string | null;
+  allLabels?: Label[];
 }
 
 export function CreateTaskModal({ 
@@ -26,13 +28,15 @@ export function CreateTaskModal({
   onSubmit, 
   role, 
   agencyUsers,
-  syncError
+  syncError,
+  allLabels = []
 }: CreateTaskModalProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<"low" | "medium" | "high" | "urgent">("medium");
   const [dueDate, setDueDate] = useState<string>("");
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
@@ -49,6 +53,7 @@ export function CreateTaskModal({
         priority,
         due_date: dueDate || null,
         assignees: selectedAssignees,
+        labels: selectedLabels,
       });
       // Reset form
       setTitle("");
@@ -56,6 +61,7 @@ export function CreateTaskModal({
       setPriority("medium");
       setDueDate("");
       setSelectedAssignees([]);
+      setSelectedLabels([]);
     } finally {
       setIsSubmitting(false);
     }
@@ -66,6 +72,14 @@ export function CreateTaskModal({
       prev.includes(userId) 
         ? prev.filter(id => id !== userId)
         : [...prev, userId]
+    );
+  };
+
+  const toggleLabel = (labelId: string) => {
+    setSelectedLabels(prev => 
+      prev.includes(labelId)
+        ? prev.filter(id => id !== labelId)
+        : [...prev, labelId]
     );
   };
 
@@ -179,6 +193,34 @@ export function CreateTaskModal({
               </div>
             </div>
           )}
+
+          {/* Labels */}
+          <div className="space-y-3">
+            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+              <Tag size={12} /> Etiquetas
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {allLabels.map(label => (
+                <button
+                  key={label.id}
+                  type="button"
+                  onClick={() => toggleLabel(label.id)}
+                  className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter border transition-all ${
+                    selectedLabels.includes(label.id)
+                      ? "shadow-sm scale-105"
+                      : "opacity-40 grayscale hover:opacity-100 hover:grayscale-0"
+                  }`}
+                  style={{ 
+                    backgroundColor: selectedLabels.includes(label.id) ? `${label.color}20` : "transparent", 
+                    color: label.color, 
+                    borderColor: selectedLabels.includes(label.id) ? label.color : "#e5e7eb" 
+                  }}
+                >
+                  {label.name}
+                </button>
+              ))}
+            </div>
+          </div>
         </form>
 
         {/* Footer */}

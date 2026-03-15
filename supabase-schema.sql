@@ -12,6 +12,7 @@ CREATE TABLE public.users (
   first_name VARCHAR(255),
   last_name VARCHAR(255),
   role VARCHAR(50) NOT NULL CHECK (role IN ('agency', 'client')),
+  location_id VARCHAR(255), -- GHL Location ID scoping
   profile_pic VARCHAR(1000),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -22,6 +23,7 @@ CREATE TABLE public.columns (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   title VARCHAR(255) NOT NULL,
   position INTEGER NOT NULL,
+  location_id VARCHAR(255), -- Optional: for per-location boards
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -34,11 +36,59 @@ CREATE TABLE public.tasks (
   description TEXT,
   column_id UUID REFERENCES public.columns(id) ON DELETE CASCADE,
   position INTEGER NOT NULL,
-  created_by UUID REFERENCES public.users(id) ON DELETE SET NULL, -- the client or agency member who created it
+  created_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  location_id VARCHAR(255), -- GHL Location ID for filtering
   priority VARCHAR(20) DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
   due_date TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 3.5 LABELS TABLE
+CREATE TABLE public.labels (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  color VARCHAR(50) NOT NULL, -- hex or tailwind class
+  location_id VARCHAR(255),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 3.6 TASK LABELS (Many-to-Many)
+CREATE TABLE public.task_labels (
+  task_id UUID REFERENCES public.tasks(id) ON DELETE CASCADE,
+  label_id UUID REFERENCES public.labels(id) ON DELETE CASCADE,
+  PRIMARY KEY (task_id, label_id)
+);
+
+-- 3.7 TASK CHECKLISTS
+CREATE TABLE public.task_checklists (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  task_id UUID REFERENCES public.tasks(id) ON DELETE CASCADE,
+  title VARCHAR(500) NOT NULL,
+  is_completed BOOLEAN DEFAULT FALSE,
+  position INTEGER NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 3.8 TASK ATTACHMENTS
+CREATE TABLE public.task_attachments (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  task_id UUID REFERENCES public.tasks(id) ON DELETE CASCADE,
+  name VARCHAR(500) NOT NULL,
+  url TEXT NOT NULL,
+  type VARCHAR(50) DEFAULT 'link', -- link, file, drive, etc
+  created_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 3.9 TASK COMMENTS (Dual Channel)
+CREATE TABLE public.task_comments (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  task_id UUID REFERENCES public.tasks(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  content TEXT NOT NULL,
+  type VARCHAR(50) NOT NULL CHECK (type IN ('internal', 'external')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- 4. TASK ASSIGNEES (Many-to-Many Relationship for multiple assignees)
@@ -57,6 +107,18 @@ ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.columns ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.task_assignees ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.labels ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.task_labels ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.task_checklists ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.task_attachments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.task_comments ENABLE ROW LEVEL SECURITY;
 
--- Note: Actual RLS policies depend on Supabase auth JWTs natively, but since we are relying on GHL Auth + custom backend tokens, we will primarily enforce access controls in the Next.js API Routes rather than relying purely on Supabase RLS.
--- Therefore, we can either create a service role API configuration or implement custom JWT validation in Supabase. For simplicity, we create open policies if using a secure Serverless API wrapper.
+-- Note: Policies are enforced via API (Service Role) for initial complexity.
+-- However, we grant public READ access for REALTIME events to work.
+DROP POLICY IF EXISTS "Public Read Access" ON tasks;
+CREATE POLICY "Public Read Access" ON tasks FOR SELECT TO public USING (true);
+
+-- Ensure Realtime is optimized
+ALTER TABLE public.tasks REPLICA IDENTITY FULL;
+DROP PUBLICATION IF EXISTS supabase_realtime;
+CREATE PUBLICATION supabase_realtime FOR TABLE tasks, columns, labels, task_labels, task_checklists, task_attachments, task_comments;

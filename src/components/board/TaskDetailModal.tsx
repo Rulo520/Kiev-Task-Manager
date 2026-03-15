@@ -1,0 +1,413 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { 
+  X, 
+  Plus, 
+  Trash2, 
+  Link as LinkIcon, 
+  Paperclip, 
+  MessageSquare, 
+  Lock, 
+  Send,
+  Loader2,
+  CheckCircle2,
+  Circle
+} from "lucide-react";
+import { Task, ChecklistItem, Attachment, Comment, User, Role } from "@/types/kanban";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import { createClient } from "@/lib/supabase/client";
+
+interface TaskDetailModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  task: Task;
+  role: Role;
+  currentUser: User;
+}
+
+export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, currentUser }: TaskDetailModalProps) {
+  const [task, setTask] = useState<Task>(initialTask);
+  const [isLoading, setIsLoading] = useState(true);
+  const [activeChat, setActiveChat] = useState<"external" | "internal">("external");
+  const [newChecklistTitle, setNewChecklistTitle] = useState("");
+  const [newComment, setNewComment] = useState("");
+  const [newAttachmentName, setNewAttachmentName] = useState("");
+  const [newAttachmentUrl, setNewAttachmentUrl] = useState("");
+  const [isAddingAttachment, setIsAddingAttachment] = useState(false);
+
+  const fetchTaskDetails = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`/api/tasks/${initialTask.id}`);
+      if (!res.ok) throw new Error("Failed to fetch task details");
+      const data = await res.json();
+      setTask(data);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [initialTask.id]);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchTaskDetails();
+    }
+  }, [isOpen, fetchTaskDetails]);
+
+  // Realtime Subscriptions
+  useEffect(() => {
+    if (!isOpen) return;
+    const supabase = createClient();
+    
+    const channel = supabase
+      .channel(`task-details-${task.id}`)
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'task_checklists', 
+        filter: `task_id=eq.${task.id}` 
+      }, fetchTaskDetails)
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'task_comments', 
+        filter: `task_id=eq.${task.id}` 
+      }, fetchTaskDetails)
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'task_attachments', 
+        filter: `task_id=eq.${task.id}` 
+      }, fetchTaskDetails)
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isOpen, task.id, fetchTaskDetails]);
+
+  if (!isOpen) return null;
+
+  // --- ACTIONS ---
+  const handleAddChecklistItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newChecklistTitle.trim()) return;
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/checklists`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: newChecklistTitle, position: (task.checklists?.length || 0) })
+      });
+      if (res.ok) {
+        setNewChecklistTitle("");
+        fetchTaskDetails();
+      }
+    } catch (err) { console.error(err); }
+  };
+
+  const toggleChecklistItem = async (itemId: string, isCompleted: boolean) => {
+    try {
+      await fetch(`/api/tasks/${task.id}/checklists/${itemId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_completed: !isCompleted })
+      });
+      // Optimized: update local state immediately
+      setTask(prev => ({
+        ...prev,
+        checklists: prev.checklists?.map(item => 
+          item.id === itemId ? { ...item, is_completed: !isCompleted } : item
+        )
+      }));
+    } catch (err) { console.error(err); }
+  };
+
+  const handleDeleteChecklistItem = async (itemId: string) => {
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/checklists/${itemId}`, { method: "DELETE" });
+      if (res.ok) fetchTaskDetails();
+    } catch (err) { console.error(err); }
+  };
+
+  const handleAddComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newComment.trim()) return;
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: newComment, type: activeChat })
+      });
+      if (res.ok) {
+        setNewComment("");
+        fetchTaskDetails();
+      }
+    } catch (err) { console.error(err); }
+  };
+
+  const handleAddAttachment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAttachmentName.trim() || !newAttachmentUrl.trim()) return;
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/attachments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newAttachmentName, url: newAttachmentUrl })
+      });
+      if (res.ok) {
+        setNewAttachmentName("");
+        setNewAttachmentUrl("");
+        setIsAddingAttachment(false);
+        fetchTaskDetails();
+      }
+    } catch (err) { console.error(err); }
+  };
+
+  const deleteAttachment = async (id: string) => {
+    try {
+      await fetch(`/api/tasks/${task.id}/attachments/${id}`, { method: "DELETE" });
+      fetchTaskDetails();
+    } catch (err) { console.error(err); }
+  };
+
+  // Checklist Progress
+  const completedItems = task.checklists?.filter(i => i.is_completed).length || 0;
+  const totalItems = task.checklists?.length || 0;
+  const progress = totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
+      
+      <div className="relative bg-white w-full max-w-4xl max-h-[90vh] rounded-[32px] shadow-2xl overflow-hidden flex flex-col md:flex-row border border-indigo-100">
+        <button onClick={onClose} className="absolute right-6 top-6 z-10 p-2 text-gray-400 hover:text-indigo-600 bg-white rounded-full shadow-lg border border-gray-100 transition-all">
+          <X size={20} />
+        </button>
+
+        {/* Left Side: Content */}
+        <div className="flex-1 overflow-y-auto p-8 md:p-10 no-scrollbar border-r border-gray-50">
+          <div className="space-y-8">
+            {/* Header */}
+            <div>
+              <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-slate-100 text-slate-500 mb-3 inline-block`}>
+                Tarea Detalle
+              </span>
+              <h2 className="text-3xl font-black text-gray-800 leading-tight">{task.title}</h2>
+              <div className="flex items-center gap-3 mt-4 text-xs font-medium text-gray-400">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                  Creado por Agencia
+                </div>
+                <span>•</span>
+                <div>{format(new Date(task.created_at), "dd MMMM yyyy", { locale: es })}</div>
+              </div>
+            </div>
+
+            {/* Description */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
+                Descripción
+              </h4>
+              <p className="text-gray-600 bg-slate-50/50 p-6 rounded-2xl border border-dashed border-gray-200 text-sm leading-relaxed">
+                {task.description || "Sin descripción proporcionada."}
+              </p>
+            </div>
+
+            {/* Checklist */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
+                  Checklist
+                  {totalItems > 0 && <span className="text-[10px] text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full">{completedItems}/{totalItems}</span>}
+                </h4>
+              </div>
+
+              {/* Progress Bar */}
+              {totalItems > 0 && (
+                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-indigo-600 transition-all duration-500 shadow-[0_0_10px_rgba(79,70,229,0.3)]"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+              )}
+
+              <div className="space-y-2">
+                {task.checklists?.map((item) => (
+                  <div key={item.id} className="flex items-center gap-3 group bg-white hover:bg-slate-50 p-3 rounded-xl border border-gray-100 transition-all">
+                    <button 
+                      onClick={() => toggleChecklistItem(item.id, item.is_completed)}
+                      className={`transition-colors ${item.is_completed ? "text-indigo-600" : "text-gray-300 hover:text-indigo-400"}`}
+                    >
+                      {item.is_completed ? <CheckCircle2 size={20} /> : <Circle size={20} />}
+                    </button>
+                    <span className={`flex-1 text-sm font-medium ${item.is_completed ? "text-gray-400 line-through" : "text-gray-700"}`}>
+                      {item.title}
+                    </span>
+                    <button 
+                      onClick={() => handleDeleteChecklistItem(item.id)}
+                      className="opacity-0 group-hover:opacity-100 text-rose-300 hover:text-rose-500 transition-all"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))}
+
+                <form onSubmit={handleAddChecklistItem} className="flex gap-2 mt-4">
+                  <input 
+                    type="text"
+                    value={newChecklistTitle}
+                    onChange={(e) => setNewChecklistTitle(e.target.value)}
+                    placeholder="Añadir un paso..."
+                    className="flex-1 bg-slate-50 border-none rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 font-medium"
+                  />
+                  <button type="submit" className="bg-indigo-600 text-white p-2 rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100">
+                    <Plus size={20} />
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            {/* Attachments */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
+                  <Paperclip size={16} />
+                  Adjuntos
+                </h4>
+                <button 
+                  onClick={() => setIsAddingAttachment(true)}
+                  className="text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-800"
+                >
+                  Agregar link
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {task.attachments?.map((att) => (
+                  <div key={att.id} className="flex items-center gap-3 p-3 bg-white border border-gray-100 rounded-2xl hover:border-indigo-200 group transition-all">
+                    <div className="h-10 w-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
+                      <LinkIcon size={18} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <a href={att.url} target="_blank" rel="noopener noreferrer" className="block text-sm font-bold text-gray-800 hover:text-indigo-600 truncate">
+                        {att.name}
+                      </a>
+                      <span className="text-[10px] text-gray-400 font-medium uppercase">{att.type}</span>
+                    </div>
+                    <button onClick={() => deleteAttachment(att.id)} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-rose-500 transition-all">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {isAddingAttachment && (
+                <form onSubmit={handleAddAttachment} className="bg-slate-50 p-4 rounded-2xl space-y-3 border border-indigo-100 border-dashed">
+                  <input 
+                    type="text" 
+                    placeholder="Nombre (ej: Carpeta Drive)" 
+                    value={newAttachmentName}
+                    onChange={(e) => setNewAttachmentName(e.target.value)}
+                    className="w-full bg-white border-none rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 font-medium"
+                    required
+                  />
+                  <input 
+                    type="url" 
+                    placeholder="https://..." 
+                    value={newAttachmentUrl}
+                    onChange={(e) => setNewAttachmentUrl(e.target.value)}
+                    className="w-full bg-white border-none rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 font-medium"
+                    required
+                  />
+                  <div className="flex justify-end gap-2 text-xs">
+                    <button type="button" onClick={() => setIsAddingAttachment(false)} className="px-3 py-1.5 font-bold text-gray-400 hover:text-gray-600">Cancelar</button>
+                    <button type="submit" className="px-4 py-1.5 bg-indigo-600 text-white font-black uppercase rounded-lg">Guardar</button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Right Side: Dual Chat */}
+        <div className="w-full md:w-80 bg-slate-50/50 flex flex-col p-6 md:p-8">
+          <div className="flex items-center justify-between mb-6">
+            <h4 className="text-sm font-black text-gray-800 uppercase tracking-widest">
+              Comunicación
+            </h4>
+            {isLoading && <Loader2 size={16} className="text-indigo-500 animate-spin" />}
+          </div>
+
+          {/* Toggle Channels */}
+          <div className="flex p-1 bg-slate-100 rounded-2xl mb-6">
+            <button 
+              onClick={() => setActiveChat("external")}
+              className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${activeChat === "external" ? "bg-white text-indigo-600 shadow-sm" : "text-gray-400"}`}
+            >
+              Publico
+            </button>
+            {role === "agency" && (
+              <button 
+                onClick={() => setActiveChat("internal")}
+                className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-1.5 ${activeChat === "internal" ? "bg-indigo-600 text-white shadow-lg shadow-indigo-100" : "text-gray-400"}`}
+              >
+                <Lock size={10} />
+                Interno
+              </button>
+            )}
+          </div>
+
+          {/* Messages List */}
+          <div className="flex-1 overflow-y-auto space-y-4 no-scrollbar min-h-[300px] mb-6 pr-2">
+            {task.comments?.filter(c => c.type === activeChat).map((comment) => (
+              <div key={comment.id} className={`flex flex-col gap-2 ${comment.user_id === currentUser.id ? "items-end" : ""}`}>
+                <div className={`max-w-[85%] p-3 rounded-2xl text-xs font-medium ${
+                  comment.user_id === currentUser.id 
+                    ? (activeChat === "internal" ? "bg-indigo-600 text-white rounded-tr-none" : "bg-white border border-gray-100 text-gray-800 shadow-sm rounded-tr-none")
+                    : "bg-white border border-gray-100 text-gray-800 shadow-sm rounded-tl-none"
+                }`}>
+                  <div className="flex items-center justify-between gap-4 mb-2">
+                    <span className="text-[9px] font-black uppercase opacity-60">
+                      {comment.user?.first_name}
+                    </span>
+                    <span className="text-[8px] opacity-40">
+                      {format(new Date(comment.created_at), "HH:mm")}
+                    </span>
+                  </div>
+                  {comment.content}
+                </div>
+              </div>
+            ))}
+            {(!task.comments || task.comments.filter(c => c.type === activeChat).length === 0) && (
+              <div className="h-full flex flex-col items-center justify-center text-center opacity-30 select-none">
+                <MessageSquare size={32} className="mb-2" />
+                <p className="text-[10px] font-black uppercase tracking-widest">Sin mensajes aún</p>
+              </div>
+            )}
+          </div>
+
+          {/* New Comment Form */}
+          <form onSubmit={handleAddComment} className="relative">
+            <input 
+              type="text"
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              placeholder={activeChat === "internal" ? "Nota interna..." : "Pregunta o duda..."}
+              className="w-full bg-white border-none rounded-2xl px-5 py-4 text-xs pr-12 focus:ring-2 focus:ring-indigo-500 shadow-lg shadow-slate-200 placeholder:opacity-50 font-medium"
+            />
+            <button 
+              type="submit" 
+              className={`absolute right-2 top-2 bottom-2 w-10 flex items-center justify-center rounded-xl transition-all ${activeChat === "internal" ? "bg-indigo-600 text-white shadow-lg" : "bg-slate-900 text-white"}`}
+            >
+              <Send size={16} />
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}

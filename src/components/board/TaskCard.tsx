@@ -3,15 +3,16 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Task } from "@/types/kanban";
-import { MessageSquare, Paperclip, Calendar, MoreHorizontal } from "lucide-react";
+import { Calendar, MoreHorizontal, CheckSquare, MessageCircle, Paperclip } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
 interface TaskCardProps {
   task: Task;
+  onClick?: () => void;
 }
 
-export function TaskCard({ task }: TaskCardProps) {
+export function TaskCard({ task, onClick }: TaskCardProps) {
   const {
     attributes,
     listeners,
@@ -55,10 +56,27 @@ export function TaskCard({ task }: TaskCardProps) {
       style={style}
       {...attributes}
       {...listeners}
+      onClick={(e) => {
+        // Prevent opening if it was a drag (roughly checked by dnd-kit pointer sensors usually, 
+        // but we can add a small safety here if needed)
+        onClick?.();
+      }}
       className="group relative bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 cursor-grab active:cursor-grabbing border-b-2 border-b-gray-100/50"
     >
       <div className="flex flex-col gap-3">
-        {/* Priority Badge */}
+        {/* Labels & Priority */}
+        <div className="flex flex-wrap gap-1 mb-1">
+          {task.labels && task.labels.map((item) => (
+             <span 
+               key={item.label.id} 
+               className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter"
+               style={{ backgroundColor: `${item.label.color}20`, color: item.label.color, border: `1px solid ${item.label.color}40` }}
+             >
+               {item.label.name}
+             </span>
+          ))}
+        </div>
+
         <div className="flex justify-between items-start">
           <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${priorityColors[task.priority]}`}>
             {task.priority === "urgent" ? "🚨 Urgente" : task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
@@ -80,17 +98,31 @@ export function TaskCard({ task }: TaskCardProps) {
           )}
         </div>
 
+        {/* Activity Indicators (V3) */}
+        <div className="flex items-center gap-3 mt-1">
+          {task.checklists && task.checklists.length > 0 && (
+            <div className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg ${task.checklists.every(i => i.is_completed) ? "bg-emerald-50 text-emerald-600" : "bg-slate-50 text-slate-500"}`}>
+              <CheckSquare size={10} />
+              {task.checklists.filter(i => i.is_completed).length}/{task.checklists.length}
+            </div>
+          )}
+          {task.comments && task.comments.length > 0 && (
+            <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
+              <MessageCircle size={10} />
+              {task.comments.length}
+            </div>
+          )}
+          {task.attachments && task.attachments.length > 0 && (
+            <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
+              <Paperclip size={10} />
+              {task.attachments.length}
+            </div>
+          )}
+        </div>
+
         {/* Metadata Footer */}
         <div className="pt-2 flex items-center justify-between border-t border-gray-50">
           <div className="flex items-center gap-3 text-gray-400">
-            <div className="flex items-center gap-1 hover:text-indigo-500 transition-colors">
-              <MessageSquare size={12} />
-              <span className="text-[10px] font-bold">0</span>
-            </div>
-            <div className="flex items-center gap-1 hover:text-indigo-500 transition-colors">
-              <Paperclip size={12} />
-              <span className="text-[10px] font-bold">0</span>
-            </div>
             {task.due_date && (
               <div className="flex items-center gap-1 text-indigo-500 font-bold">
                 <Calendar size={12} />
@@ -99,50 +131,44 @@ export function TaskCard({ task }: TaskCardProps) {
                 </span>
               </div>
             )}
+            <div className="text-[9px] font-medium opacity-60">
+              {format(new Date(task.created_at), "dd/MM/yy")}
+            </div>
           </div>
 
-          {/* Assignees */}
-          <div className="flex -space-x-1.5 overflow-hidden">
-            {task.assignees && task.assignees.length > 0 ? (
-              task.assignees
-                .slice(0, 3)
-                .map((assignee) => (
-                  <div 
-                    key={assignee.user.id}
-                    className="relative inline-block"
-                    title={`${assignee.user.first_name} ${assignee.user.last_name}`}
-                  >
-                    {assignee.user.profile_pic ? (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img
-                        className="h-6 w-6 rounded-full border-2 border-white ring-1 ring-gray-100 object-cover"
-                        src={assignee.user.profile_pic}
-                        alt=""
-                      />
-                    ) : (
-                      <div className="h-6 w-6 rounded-full border-2 border-white bg-indigo-50 flex items-center justify-center ring-1 ring-gray-100">
-                        <span className="text-[8px] font-black text-indigo-600">
-                          {assignee.user.first_name[0]}{assignee.user.last_name[0]}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                ))
-            ) : (
-              <div className="h-6 w-6 rounded-full border-2 border-dashed border-gray-100 flex items-center justify-center">
-                <UserPlus size={10} className="text-gray-200" />
-              </div>
-            )}
-            {task.assignees && task.assignees.length > 3 && (
-              <div className="h-6 w-6 rounded-full border-2 border-white bg-gray-50 flex items-center justify-center text-[8px] font-bold text-gray-400 ring-1 ring-gray-100">
-                +{task.assignees.length - 3}
-              </div>
-            )}
+          <div className="flex items-center gap-2">
+            {/* Assignees */}
+            <div className="flex -space-x-1.5 overflow-hidden">
+              {task.assignees && task.assignees.length > 0 ? (
+                task.assignees
+                  .slice(0, 3)
+                  .map((assignee) => (
+                    <div 
+                      key={assignee.user.id}
+                      className="relative inline-block"
+                      title={`${assignee.user.first_name} ${assignee.user.last_name}`}
+                    >
+                      {assignee.user.profile_pic ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img
+                          className="h-5 w-5 rounded-full border border-white object-cover"
+                          src={assignee.user.profile_pic}
+                          alt=""
+                        />
+                      ) : (
+                        <div className="h-5 w-5 rounded-full border border-white bg-indigo-50 flex items-center justify-center">
+                          <span className="text-[7px] font-black text-indigo-600">
+                            {assignee.user.first_name[0]}{assignee.user.last_name[0]}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ))
+              ) : null}
+            </div>
           </div>
         </div>
       </div>
     </div>
   );
 }
-
-import { UserPlus } from "lucide-react";

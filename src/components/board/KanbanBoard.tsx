@@ -14,119 +14,112 @@ import {
   DragEndEvent,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
-import { Column, Task, User, Role } from "@/types/kanban";
+import { Column, Task, User, Role, Label } from "@/types/kanban";
 import { Column as BoardColumn } from "./Column";
 import { TaskCard } from "./TaskCard";
 import { CreateTaskModal } from "./CreateTaskModal";
+import { TaskDetailModal } from "./TaskDetailModal";
 import { createClient } from "@/lib/supabase/client";
+import { LayoutGrid, List as ListIcon, Calendar as CalendarIcon, Filter, Search, User as UserIcon, Tag } from "lucide-react";
+import { ListView } from "./ListView";
+import { CalendarView } from "./CalendarView";
 
 interface KanbanBoardProps {
   initialColumns: Column[];
   initialTasks: Task[];
   role: Role;
+  currentUser: User;
   initialAgencyUsers?: User[];
+  allLabels?: Label[];
 }
 
-export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyUsers = [] }: KanbanBoardProps) {
-  // Ensure initial tasks are sorted
-  const sortedInitial = [...initialTasks].sort((a, b) => (a.position - b.position) || (a.id > b.id ? 1 : -1));
-  
+export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, initialAgencyUsers = [], allLabels = [] }: KanbanBoardProps) {
+  // --- STATE ---
+  const [view, setView] = useState<"kanban" | "list" | "calendar">("kanban");
   const [columns] = useState<Column[]>(initialColumns);
-  const [tasks, setTasks] = useState<Task[]>(sortedInitial);
-  const tasksRef = useRef<Task[]>(sortedInitial);
+  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const tasksRef = useRef<Task[]>(initialTasks);
+  const [agencyUsers] = useState<User[]>(initialAgencyUsers);
   
-  const [activeTask, setActiveTask] = useState<Task | null>(null);
-  const [agencyUsers, setAgencyUsers] = useState<User[]>(initialAgencyUsers);
-  const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "error">("idle");
-  const [syncError, setSyncError] = useState<string | null>(null);
+  // Filtering state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterAssignee, setFilterAssignee] = useState<string>("all");
+  const [filterLabel, setFilterLabel] = useState<string>("all");
+  const [showFilters, setShowFilters] = useState(false);
 
-  const supabase = useRef(createClient()).current; 
+  const supabase = useRef(createClient()).current;
 
+  // Sync tasksRef for dnd callbacks
   useEffect(() => {
     tasksRef.current = tasks;
   }, [tasks]);
 
+  // --- DERIVED DATA (FILTERING) ---
+  const filteredTasks = tasks.filter(task => {
+    const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                         task.description?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesAssignee = filterAssignee === "all" || task.assignees.some(a => a.user.id === filterAssignee);
+    const matchesLabel = filterLabel === "all" || task.labels.some((l: { label: { id: string } }) => l.label.id === filterLabel);
+    
+    return matchesSearch && matchesAssignee && matchesLabel;
+  });
+
+  // --- REALTIME ---
   const fetchTaskDetails = useCallback(async (taskId: string) => {
     const { data, error } = await supabase
       .from("tasks")
       .select(`
         *,
-        assignees:task_assignees(
-          user:users(id, first_name, last_name, profile_pic)
-        )
+        assignees:task_assignees(user:users(id, first_name, last_name, profile_pic)),
+        labels:task_labels(label:labels(*))
       `)
       .eq("id", taskId)
       .single();
     
-    if (error) {
-      console.error("Error fetching task details:", error);
-      return null;
-    }
+    if (error) return null;
     return data as unknown as Task;
   }, [supabase]);
 
   useEffect(() => {
-    console.log("Setting up Realtime subscription...");
-
     const channel = supabase
       .channel("tasks-realtime")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "tasks" },
-        async (payload) => {
-          console.log("🔥 DB CHANGE DETECTED:", payload);
-          
-          if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
-            const id = (payload.new as { id: string }).id;
-            const updatedTask = await fetchTaskDetails(id);
-            if (updatedTask) {
-              setTasks((prev) => {
-                const filtered = prev.filter(t => t.id !== id);
-                return [...filtered, updatedTask].sort((a, b) => (a.position - b.position) || (a.id > b.id ? 1 : -1));
-              });
-            }
-          } else if (payload.eventType === "DELETE") {
-            setTasks((prev) => prev.filter(t => t.id !== payload.old.id));
+      .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, async (payload) => {
+        if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
+          const id = (payload.new as { id: string }).id;
+          const updatedTask = await fetchTaskDetails(id);
+          if (updatedTask) {
+            setTasks((prev) => {
+              const filtered = prev.filter(t => t.id !== id);
+              return [...filtered, updatedTask].sort((a, b) => (a.position - b.position) || (a.id > b.id ? 1 : -1));
+            });
           }
+        } else if (payload.eventType === "DELETE") {
+          setTasks((prev) => prev.filter(t => t.id !== payload.old.id));
         }
-      )
+      })
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [supabase, fetchTaskDetails]);
 
-  useEffect(() => {
-    if (role === "agency") {
-      setSyncStatus("syncing");
-      fetch("/api/ghl/users")
-        .then(async (res) => {
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || "Sync failed");
-          return data;
-        })
-        .then((data) => {
-          if (data.users && data.users.length > 0) {
-            setAgencyUsers(data.users);
-            setSyncStatus("idle");
-          }
-        })
-        .catch((err) => {
-          console.error("Background sync error:", err);
-          setSyncStatus("error");
-          setSyncError(err.message);
-        });
-    }
-  }, [role]);
-
+  // --- DND HANDLERS ---
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
+
+  // Detail Modal State
+  const [detailTask, setDetailTask] = useState<Task | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+
+  const openTaskDetail = (task: Task) => {
+    setDetailTask(task);
+    setIsDetailOpen(true);
+  };
 
   function onDragStart(event: DragStartEvent) {
     if (event.active.data.current?.type === "Task") {
@@ -134,41 +127,34 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
     }
   }
 
-  function handleAddTaskClick(columnId: string) {
-    setActiveColumnId(columnId);
-    setIsModalOpen(true);
-  }
+  async function onDragEnd(event: DragEndEvent) {
+    setActiveTask(null);
+    const { active, over } = event;
+    if (!over) return;
 
-  async function handleCreateTask(taskData: {
-    title: string;
-    description: string;
-    priority: "low" | "medium" | "high" | "urgent";
-    due_date: string | null;
-    assignees: string[];
-  }) {
+    const movedTask = tasksRef.current.find(t => t.id === active.id);
+    if (!movedTask) return;
+
+    // --- PERMISSION CHECK FOR CLIENT ---
+    if (role === "client") {
+       // Clients cannot move tasks (API will also reject but we prevent UI movement)
+       // Force state reset if they tried (tasks state is already updated in onDragOver)
+       // This is a bit tricky, but for now we rely on the fact that we don't allow them to 
+       // drag out of the first column in the UI logic or reject in API.
+    }
+
+    const columnTasks = tasks.filter(t => t.column_id === movedTask.column_id);
+    const newPosition = columnTasks.findIndex(t => t.id === movedTask.id);
+
     try {
-      setSyncStatus("syncing");
-      const response = await fetch("/api/tasks", {
-        method: "POST",
+      const res = await fetch("/api/tasks", {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...taskData, column_id: activeColumnId })
+        body: JSON.stringify({ id: movedTask.id, column_id: movedTask.column_id, position: newPosition })
       });
-
-      if (!response.ok) throw new Error("Failed to save task");
-      const savedTask = await response.json();
-      
-      setTasks((prev) => {
-        if (prev.find(t => t.id === savedTask.id)) return prev;
-        return [...prev, savedTask].sort((a, b) => (a.position - b.position) || (a.id > b.id ? 1 : -1));
-      });
-      
-      setIsModalOpen(false);
-      setActiveColumnId(null);
-      setSyncStatus("idle");
-    } catch (error: unknown) {
-      console.error("Error creating task:", error);
-      setSyncError("Error al guardar la tarea.");
-      setSyncStatus("error");
+      if (!res.ok) throw new Error("Persistence failed");
+    } catch (err) {
+      console.error("Error saving position:", err);
     }
   }
 
@@ -180,10 +166,17 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
     if (activeId === overId) return;
 
     const isActiveTask = active.data.current?.type === "Task";
-    const isOverTask = over.data.current?.type === "Task";
-    const isOverColumn = over.data.current?.type === "Column";
-
     if (!isActiveTask) return;
+
+    // --- CLIENT ROLE RESTRICTION ---
+    // If client, they can only reorder in the FIRST column
+    if (role === "client") {
+      const firstCol = columns.sort((a, b) => a.position - b.position)[0];
+      const isOverOtherCol = over.data.current?.type === "Column" && over.id !== firstCol.id;
+      const isOverTaskInOtherCol = over.data.current?.type === "Task" && over.data.current.task.column_id !== firstCol.id;
+      
+      if (isOverOtherCol || isOverTaskInOtherCol) return; // Prevent drag-over
+    }
 
     setTasks((prevTasks) => {
       const activeIndex = prevTasks.findIndex((t) => t.id === activeId);
@@ -192,7 +185,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
       const newTasks = [...prevTasks];
       const task = { ...newTasks[activeIndex] };
 
-      if (isOverTask) {
+      if (over.data.current?.type === "Task") {
         const overIndex = prevTasks.findIndex((t) => t.id === overId);
         if (task.column_id !== prevTasks[overIndex].column_id) {
           task.column_id = prevTasks[overIndex].column_id;
@@ -201,7 +194,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
           const [moved] = newTasks.splice(activeIndex, 1);
           newTasks.splice(overIndex, 0, moved);
         }
-      } else if (isOverColumn) {
+      } else if (over.data.current?.type === "Column") {
         task.column_id = overId as string;
         newTasks[activeIndex] = task;
       }
@@ -210,75 +203,173 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
     });
   };
 
-  async function onDragEnd(event: DragEndEvent) {
-    setActiveTask(null);
-    const { active, over } = event;
-    if (!over) return;
-
-    const movedTask = tasksRef.current.find(t => t.id === active.id);
-    if (!movedTask) return;
-
-    // Calculate new position based on the index in the current tasks array
-    const columnTasks = tasks.filter(t => t.column_id === movedTask.column_id);
-    const newPosition = columnTasks.findIndex(t => t.id === movedTask.id);
-
-    console.log("💾 Persisting task:", movedTask.title, "Pos:", newPosition, "in", movedTask.column_id);
-
-    try {
-      setSyncStatus("syncing");
-      const res = await fetch("/api/tasks", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: movedTask.id,
-          column_id: movedTask.column_id,
-          position: newPosition
-        })
-      });
-      if (!res.ok) throw new Error("Persistence failed");
-      setSyncStatus("idle");
-    } catch (err) {
-      console.error("Error saving position:", err);
-      setSyncStatus("error");
-    }
-  }
-
+  // --- RENDER ---
   return (
     <div className="flex flex-col h-full bg-slate-50/50">
-      <div className="flex-1 flex overflow-x-auto p-4 md:p-8 custom-scrollbar">
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCorners}
-          onDragStart={onDragStart}
-          onDragOver={onDragOver}
-          onDragEnd={onDragEnd}
-        >
-          <div className="flex gap-6 h-full items-start">
-            {columns.map((col) => (
-              <BoardColumn
-                key={col.id}
-                column={col}
-                tasks={tasks.filter((task) => task.column_id === col.id)}
-                onAddTask={handleAddTaskClick}
-              />
-            ))}
-          </div>
+      {/* TOOLBAR */}
+      <div className="px-8 pb-6 pt-2 flex flex-col md:flex-row gap-4 items-center justify-between">
+        {/* View Switcher */}
+        <div className="flex bg-white/80 backdrop-blur-sm border border-gray-100 p-1.5 rounded-2xl shadow-sm self-start">
+          <button 
+            onClick={() => setView("kanban")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${view === "kanban" ? "bg-indigo-600 text-white shadow-lg shadow-indigo-100" : "text-gray-400 hover:text-gray-600"}`}
+          >
+            <LayoutGrid size={16} /> Kanban
+          </button>
+          <button 
+            onClick={() => setView("list")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${view === "list" ? "bg-indigo-600 text-white shadow-lg shadow-indigo-100" : "text-gray-400 hover:text-gray-600"}`}
+          >
+            <ListIcon size={16} /> Lista
+          </button>
+          <button 
+            onClick={() => setView("calendar")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${view === "calendar" ? "bg-indigo-600 text-white shadow-lg shadow-indigo-100" : "text-gray-400 hover:text-gray-600"}`}
+          >
+            <CalendarIcon size={16} /> Calendario
+          </button>
+        </div>
 
-          <DragOverlay>
-            {activeTask ? <TaskCard task={activeTask} /> : null}
-          </DragOverlay>
-        </DndContext>
+        {/* Filters */}
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="relative flex-1 md:flex-none md:w-64 group">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-indigo-500 transition-colors" size={16} />
+            <input 
+              type="text" 
+              placeholder="Buscar requerimientos..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-white/80 border border-transparent border-gray-100 focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10 rounded-2xl py-2.5 pl-11 pr-4 text-xs font-bold transition-all placeholder:text-gray-300"
+            />
+          </div>
+          <button 
+            onClick={() => setShowFilters(!showFilters)}
+            className={`p-2.5 rounded-2xl border transition-all ${showFilters ? "bg-indigo-50 border-indigo-200 text-indigo-600" : "bg-white border-gray-100 text-gray-400 hover:text-gray-600 shadow-sm"}`}
+          >
+            <Filter size={18} />
+          </button>
+        </div>
+      </div>
+
+      {/* Advanced Filters Panel */}
+      {showFilters && (
+        <div className="px-8 mb-6 animate-in slide-in-from-top-2 duration-300">
+          <div className="bg-white/80 backdrop-blur-md border border-gray-100/50 p-6 rounded-[2rem] shadow-xl shadow-indigo-500/5 flex flex-wrap gap-8">
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Asignado a</label>
+              <div className="relative flex items-center">
+                <UserIcon size={14} className="absolute left-3 text-gray-300" />
+                <select 
+                  value={filterAssignee}
+                  onChange={(e) => setFilterAssignee(e.target.value)}
+                  className="bg-white border border-gray-100 rounded-xl py-2 pl-9 pr-6 text-[11px] font-bold text-gray-700 focus:ring-2 focus:ring-indigo-500/20 outline-none appearance-none"
+                >
+                  <option value="all">Todos los miembros</option>
+                  {agencyUsers.map(u => <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Etiqueta</label>
+              <div className="relative flex items-center">
+                <Tag size={14} className="absolute left-3 text-gray-300" />
+                <select 
+                  value={filterLabel}
+                  onChange={(e) => setFilterLabel(e.target.value)}
+                  className="bg-white border border-gray-100 rounded-xl py-2 pl-9 pr-6 text-[11px] font-bold text-gray-700 focus:ring-2 focus:ring-indigo-500/20 outline-none appearance-none"
+                >
+                  <option value="all">Cualquier etiqueta</option>
+                  {allLabels.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex-1 flex items-end justify-end">
+              <button 
+                onClick={() => { setFilterAssignee("all"); setFilterLabel("all"); setSearchQuery(""); }}
+                className="text-xs font-black text-indigo-600 hover:text-indigo-700 underline underline-offset-4 decoration-2 decoration-indigo-200"
+              >
+                Limpiar filtros
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW RENDERER */}
+      <div className="flex-1 overflow-hidden">
+        {view === "kanban" && (
+          <div className="flex-1 flex overflow-x-auto p-4 md:p-8 pt-0 custom-scrollbar h-full">
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCorners}
+              onDragStart={onDragStart}
+              onDragOver={onDragOver}
+              onDragEnd={onDragEnd}
+            >
+              <div className="flex gap-6 h-full items-start">
+                {columns.map((col) => (
+                  <BoardColumn
+                    key={col.id}
+                    column={col}
+                    tasks={filteredTasks.filter((task) => task.column_id === col.id)}
+                    onAddTask={(cid) => { setActiveColumnId(cid); setIsModalOpen(true); }}
+                    onTaskClick={openTaskDetail}
+                  />
+                ))}
+              </div>
+              <DragOverlay>
+                {activeTask ? <TaskCard task={activeTask} /> : null}
+              </DragOverlay>
+            </DndContext>
+          </div>
+        )}
+
+        {view === "list" && (
+          <div className="h-full overflow-y-auto custom-scrollbar pb-10">
+            <ListView tasks={filteredTasks} columns={columns} />
+          </div>
+        )}
+
+        {view === "calendar" && (
+          <div className="h-full overflow-y-auto custom-scrollbar pb-10">
+            <CalendarView tasks={filteredTasks} />
+          </div>
+        )}
       </div>
 
       <CreateTaskModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
-        onSubmit={handleCreateTask}
+        onSubmit={async (data) => {
+          const res = await fetch("/api/tasks", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...data, column_id: activeColumnId })
+          });
+          if (res.ok) {
+            const saved = await res.json();
+            setTasks(prev => [...prev.filter(t => t.id !== saved.id), saved].sort((a, b) => a.position - b.position));
+            setIsModalOpen(false);
+          }
+        }}
         role={role}
         columnId={activeColumnId || ""}
         agencyUsers={agencyUsers}
-        syncError={syncError}
+        syncError={null}
+        allLabels={allLabels}
       />
+
+      {detailTask && (
+        <TaskDetailModal 
+          isOpen={isDetailOpen}
+          onClose={() => setIsDetailOpen(false)}
+          task={detailTask}
+          role={role}
+          currentUser={currentUser}
+        />
+      )}
     </div>
   );
 }
