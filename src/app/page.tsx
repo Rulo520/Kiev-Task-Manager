@@ -1,6 +1,8 @@
 import { KanbanBoard } from "@/components/board/KanbanBoard";
 import { createClient } from "@supabase/supabase-js";
 
+export const dynamic = "force-dynamic";
+
 // Server-side environment check
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -21,6 +23,7 @@ export default async function Home({ searchParams }: { searchParams: { [key: str
   });
 
   // 1. Fetch Columns
+  console.log(`[${new Date().toISOString()}] Fetching board data...`);
   const { data: columnsData, error: colError } = await supabase
     .from('columns')
     .select('*')
