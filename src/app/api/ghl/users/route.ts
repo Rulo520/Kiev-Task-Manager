@@ -6,9 +6,9 @@ const GHL_LOCATION_ID = process.env.GHL_LOCATION_ID;
 
 export async function GET() {
   try {
-    if (!GHL_ACCESS_TOKEN || !GHL_LOCATION_ID) {
+    if (!GHL_ACCESS_TOKEN) {
       return NextResponse.json(
-        { error: "GHL_ACCESS_TOKEN or GHL_LOCATION_ID are not configured on the server." },
+        { error: "GHL_ACCESS_TOKEN is not configured on the server." },
         { status: 500 }
       );
     }
