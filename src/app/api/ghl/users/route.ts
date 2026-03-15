@@ -22,7 +22,8 @@ export async function GET() {
     const response = await fetch(url.toString(), {
       method: "GET",
       headers: {
-        "Authorization": `Bearer ${GHL_ACCESS_TOKEN}`,
+        // GHL Private Integration tokens are sent WITHOUT "Bearer" prefix
+        "Authorization": GHL_ACCESS_TOKEN,
         "Version": "2021-07-28",
         "Content-Type": "application/json",
         "Accept": "application/json"
