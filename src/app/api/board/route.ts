@@ -47,8 +47,9 @@ export async function GET(req: Request) {
       tasks: tasks || [],
     });
 
-  } catch (error: any) {
-    console.error("Board API Error:", error);
+  } catch (error: unknown) {
+    const err = error as Error;
+    console.error("Board API Error:", err);
     return NextResponse.json(
       { error: "Failed to fetch board data" },
       { status: 500 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -14,7 +14,7 @@ import {
   DragEndEvent,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
-import { Column, Task, User } from "@/types/kanban";
+import { Column, Task, User, Role } from "@/types/kanban";
 import { Column as BoardColumn } from "./Column";
 import { TaskCard } from "./TaskCard";
 import { CreateTaskModal } from "./CreateTaskModal";
@@ -22,16 +22,16 @@ import { CreateTaskModal } from "./CreateTaskModal";
 interface KanbanBoardProps {
   initialColumns: Column[];
   initialTasks: Task[];
-  role: "agency" | "client";
+  role: Role;
   initialAgencyUsers?: User[];
 }
 
 export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyUsers = [] }: KanbanBoardProps) {
-  const [columns, setColumns] = useState<Column[]>(initialColumns);
+  const [columns] = useState<Column[]>(initialColumns);
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [agencyUsers, setAgencyUsers] = useState<User[]>(initialAgencyUsers);
-  const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "error">("idle");
+  const [, setSyncStatus] = useState<"idle" | "syncing" | "error">("idle");
   const [syncError, setSyncError] = useState<string | null>(null);
 
   // Client-side background sync
@@ -82,8 +82,6 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
 
-  const columnsId = useMemo(() => columns.map((col) => col.id), [columns]);
-
   function onDragStart(event: DragStartEvent) {
     if (event.active.data.current?.type === "Task") {
       setActiveTask(event.active.data.current.task);
@@ -96,7 +94,13 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
     setIsModalOpen(true);
   }
 
-  async function handleCreateTask(taskData: any) {
+  async function handleCreateTask(taskData: {
+    title: string;
+    description: string;
+    priority: "low" | "medium" | "high" | "urgent";
+    due_date: string | null;
+    assignees: string[];
+  }) {
     try {
       setSyncStatus("syncing");
       const response = await fetch("/api/tasks", {
@@ -117,7 +121,8 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
       setIsModalOpen(false);
       setActiveColumnId(null);
       setSyncStatus("idle");
-    } catch (err: any) {
+    } catch (error: unknown) {
+      const err = error as Error;
       console.error("Error creating task:", err);
       setSyncError("Error al guardar la tarea en la base de datos.");
       setSyncStatus("error");
@@ -177,7 +182,6 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
     if (!over) return;
 
     const activeId = active.id;
-    const overId = over.id;
 
     // Find the task that was moved
     const movedTask = tasks.find(t => t.id === activeId);

@@ -1,187 +1,205 @@
 "use client";
 
 import { useState } from "react";
-import { XIcon, CalendarIcon, UsersIcon } from "lucide-react";
-import { User } from "@/types/kanban";
-import Image from "next/image";
+import { X, Calendar, Flag, UserPlus, Loader2, AlertCircle } from "lucide-react";
+import { User, Role } from "@/types/kanban";
 
-interface TaskModalProps {
+interface CreateTaskModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: any) => void;
-  role: "agency" | "client";
+  onSubmit: (task: {
+    title: string;
+    description: string;
+    priority: "low" | "medium" | "high" | "urgent";
+    due_date: string | null;
+    assignees: string[];
+  }) => void;
+  role: Role;
   columnId: string;
-  agencyUsers: User[]; // Pass fetched users here
-  syncError?: string | null;
+  agencyUsers: User[];
+  syncError: string | null;
 }
 
-export function CreateTaskModal({ isOpen, onClose, onSubmit, role, columnId, agencyUsers = [], syncError = null }: TaskModalProps) {
+export function CreateTaskModal({ 
+  isOpen, 
+  onClose, 
+  onSubmit, 
+  role, 
+  agencyUsers,
+  syncError
+}: CreateTaskModalProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<"low" | "medium" | "high" | "urgent">("medium");
-  const [dueDate, setDueDate] = useState("");
+  const [dueDate, setDueDate] = useState<string>("");
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit({ 
-      title, 
-      description, 
-      priority, 
-      column_id: columnId,
-      due_date: dueDate || null,
-      assignees: selectedAssignees 
-    });
+    if (!title.trim()) return;
     
-    // Reset form
-    setTitle("");
-    setDescription("");
-    setPriority("medium");
-    setDueDate("");
-    setSelectedAssignees([]);
+    setIsSubmitting(true);
+    try {
+      await onSubmit({
+        title,
+        description,
+        priority,
+        due_date: dueDate || null,
+        assignees: selectedAssignees,
+      });
+      // Reset form
+      setTitle("");
+      setDescription("");
+      setPriority("medium");
+      setDueDate("");
+      setSelectedAssignees([]);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const toggleAssignee = (userId: string) => {
     setSelectedAssignees(prev => 
-      prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]
+      prev.includes(userId) 
+        ? prev.filter(id => id !== userId)
+        : [...prev, userId]
     );
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-        <div className="flex justify-between items-center p-6 border-b border-gray-100">
-          <h2 className="text-xl font-semibold text-gray-800">
-            {role === "client" ? "Crear Nuevo Requerimiento" : "Crear Nueva Tarea"}
-          </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
-            <XIcon className="w-5 h-5" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-gray-100 flex flex-col max-h-[90vh]">
+        {/* Header */}
+        <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-slate-50/50">
+          <div>
+            <h3 className="text-xl font-bold text-gray-900 tracking-tight">Nueva Tarea</h3>
+            <p className="text-sm text-gray-500">Completa los detalles para comenzar.</p>
+          </div>
+          <button 
+            type="button"
+            onClick={onClose}
+            className="p-2 rounded-full hover:bg-gray-200 text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X size={20} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Título
-            </label>
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+          {/* Title and Description */}
+          <div className="space-y-4">
             <input
-              required
               type="text"
+              placeholder="¿Qué hay que hacer?"
+              className="w-full text-xl font-bold text-gray-900 placeholder:text-gray-300 border-none focus:ring-0 p-0"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder={role === "client" ? "Ej. Cambiar textos en la página de inicio" : "Título de la tarea"}
-              className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+              autoFocus
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTitle(e.target.value)}
+              required
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Descripción {role === "client" && "(Detalles del requerimiento)"}
-            </label>
             <textarea
-              rows={4}
+              placeholder="Agrega una descripción más detallada..."
+              className="w-full text-gray-600 placeholder:text-gray-300 border-none focus:ring-0 p-0 min-h-[100px] resize-none"
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Escribe los detalles aquí..."
-              className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all resize-none"
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDescription(e.target.value)}
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                <CalendarIcon className="w-4 h-4 mr-1 text-gray-400" />
-                Vencimiento
-              </label>
-              <input
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-sm"
-              />
-            </div>
+          <div className="h-px bg-gray-100" />
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Prioridad
+          {/* Metadata Grid */}
+          <div className="grid grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                <Flag size={12} /> Prioridad
               </label>
-              <select
+              <select 
+                className="w-full bg-gray-50 border-none rounded-lg text-sm font-medium focus:ring-2 focus:ring-indigo-500"
                 value={priority}
-                onChange={(e) => setPriority(e.target.value as any)}
-                className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all bg-white text-sm"
+                onChange={(e) => setPriority(e.target.value as "low" | "medium" | "high" | "urgent")}
               >
                 <option value="low">Baja</option>
                 <option value="medium">Media</option>
                 <option value="high">Alta</option>
-                {role === "agency" && <option value="urgent">Urgente</option>}
+                <option value="urgent">Urgente</option>
               </select>
             </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                <Calendar size={12} /> Fecha límite
+              </label>
+              <input 
+                type="date"
+                className="w-full bg-gray-50 border-none rounded-lg text-sm font-medium focus:ring-2 focus:ring-indigo-500"
+                value={dueDate}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDueDate(e.target.value)}
+              />
+            </div>
           </div>
 
+          {/* Allocation / Users */}
           {role === "agency" && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
-                <UsersIcon className="w-4 h-4 mr-1 text-gray-400" />
-                Asignar Responsables
+            <div className="space-y-3">
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                <UserPlus size={12} /> Asignar a
               </label>
               
-              {agencyUsers && agencyUsers.length > 0 ? (
-                <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 border border-gray-100 rounded-xl bg-gray-50/50">
-                  {agencyUsers.map(user => {
-                    const isSelected = selectedAssignees.includes(user.id);
-                    return (
-                      <button
-                        key={user.id}
-                        type="button"
-                        onClick={() => toggleAssignee(user.id)}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                          isSelected 
-                            ? "bg-indigo-100 text-indigo-700 border-indigo-200 shadow-sm" 
-                            : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300"
-                        } border`}
-                      >
-                        {user.profile_pic ? (
-                          <Image src={user.profile_pic} alt={user.first_name || ""} width={16} height={16} className="rounded-full object-cover w-4 h-4" />
-                        ) : (
-                          <div className="w-4 h-4 rounded-full bg-indigo-500 text-white flex items-center justify-center text-[8px] font-bold">
-                            {user.first_name?.[0]}
-                          </div>
-                        )}
-                        {user.first_name} {user.last_name}
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="p-3 bg-red-50 border border-red-200 text-red-800 text-xs rounded-xl flex items-start gap-2">
-                  <span className="shrink-0 text-red-500">❌</span>
-                  <div className="flex-1">
-                    <p className="font-semibold mb-1">Error de Sincronización GHL</p>
-                    <p>{syncError || "Revisa la respuesta del servidor para entender por qué el Token es rechazado. Si dice 'Unauthorized', el token expiró o le faltan Scopes (users.readonly)."}</p>
-                  </div>
+              {syncError && (
+                <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 flex gap-3 text-amber-800 text-xs">
+                  <AlertCircle size={16} className="shrink-0" />
+                  <p>{syncError}</p>
                 </div>
               )}
+
+              <div className="flex flex-wrap gap-2">
+                {agencyUsers.map(user => (
+                  <button
+                    key={user.id}
+                    type="button"
+                    onClick={() => toggleAssignee(user.id)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                      selectedAssignees.includes(user.id)
+                        ? "bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-100"
+                        : "bg-white border-gray-200 text-gray-600 hover:border-indigo-300"
+                    }`}
+                  >
+                    {user.profile_pic ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img src={user.profile_pic} alt="" className="w-4 h-4 rounded-full" />
+                    ) : (
+                      <div className="w-4 h-4 rounded-full bg-gray-100 flex items-center justify-center text-[8px]">
+                        {user.first_name[0]}
+                      </div>
+                    )}
+                    {user.first_name}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
-
-          <div className="pt-2 flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-5 py-2.5 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-xl transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="px-6 py-2.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm shadow-indigo-200 transition-all hover:shadow-md"
-            >
-              Guardar Requerimiento
-            </button>
-          </div>
         </form>
+
+        {/* Footer */}
+        <div className="p-6 border-t border-gray-100 bg-slate-50/50 flex justify-end gap-3">
+          <button 
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button 
+            type="button"
+            onClick={handleSubmit}
+            disabled={!title.trim() || isSubmitting}
+            className="px-6 py-2 bg-indigo-600 text-white text-sm font-bold rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+          >
+            {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : null}
+            {isSubmitting ? "Guardando..." : "Crear Tarea"}
+          </button>
+        </div>
       </div>
     </div>
   );

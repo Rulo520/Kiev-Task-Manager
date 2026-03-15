@@ -2,21 +2,14 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { format } from "date-fns";
-import { CalendarIcon, MessageSquareIcon, PaperclipIcon } from "lucide-react";
-import Image from "next/image";
 import { Task } from "@/types/kanban";
+import { MessageSquare, Paperclip, Calendar, MoreHorizontal } from "lucide-react";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 
 interface TaskCardProps {
   task: Task;
 }
-
-const priorityColors = {
-  low: "bg-blue-100 text-blue-700",
-  medium: "bg-yellow-100 text-yellow-700",
-  high: "bg-orange-100 text-orange-700",
-  urgent: "bg-red-100 text-red-700",
-};
 
 export function TaskCard({ task }: TaskCardProps) {
   const {
@@ -35,8 +28,15 @@ export function TaskCard({ task }: TaskCardProps) {
   });
 
   const style = {
+    transform: CSS.Translate.toString(transform),
     transition,
-    transform: CSS.Transform.toString(transform),
+  };
+
+  const priorityColors = {
+    low: "bg-emerald-100 text-emerald-700 border-emerald-200",
+    medium: "bg-amber-100 text-amber-700 border-amber-200",
+    high: "bg-orange-100 text-orange-700 border-orange-200",
+    urgent: "bg-rose-100 text-rose-700 border-rose-200",
   };
 
   if (isDragging) {
@@ -44,7 +44,7 @@ export function TaskCard({ task }: TaskCardProps) {
       <div
         ref={setNodeRef}
         style={style}
-        className="opacity-30 border-2 border-indigo-500 rounded-xl bg-white shadow-xl h-[120px]"
+        className="opacity-30 bg-white border-2 border-indigo-500 rounded-2xl h-[160px] cursor-grabbing shadow-inner"
       />
     );
   }
@@ -55,73 +55,94 @@ export function TaskCard({ task }: TaskCardProps) {
       style={style}
       {...attributes}
       {...listeners}
-      className={`bg-white p-4 rounded-xl shadow-sm border border-gray-100 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow group relative`}
+      className="group relative bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 cursor-grab active:cursor-grabbing border-b-2 border-b-gray-100/50"
     >
-      <div className="flex justify-between items-start mb-2">
-        <span
-          className={`px-2 py-1 rounded-full text-xs font-medium ${
-            priorityColors[task.priority]
-          }`}
-        >
-          {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
-        </span>
-      </div>
+      <div className="flex flex-col gap-3">
+        {/* Priority Badge */}
+        <div className="flex justify-between items-start">
+          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${priorityColors[task.priority]}`}>
+            {task.priority === "urgent" ? "🚨 Urgente" : task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+          </span>
+          <button className="text-gray-300 hover:text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity">
+            <MoreHorizontal size={14} />
+          </button>
+        </div>
 
-      <h4 className="text-sm font-semibold text-gray-800 mb-1">
-        {task.title}
-      </h4>
-
-      {task.description && (
-        <p className="text-xs text-gray-500 line-clamp-2 mb-3">
-          {task.description}
-        </p>
-      )}
-
-      <div className="flex items-center justify-between mt-4">
-        <div className="flex items-center space-x-3 text-gray-400">
-          <div className="flex items-center text-xs">
-            <MessageSquareIcon className="w-3 h-3 mr-1" />
-            <span>0</span>
-          </div>
-          <div className="flex items-center text-xs">
-            <PaperclipIcon className="w-3 h-3 mr-1" />
-            <span>0</span>
-          </div>
-          {task.due_date && (
-            <div className="flex items-center text-xs">
-              <CalendarIcon className="w-3 h-3 mr-1" />
-              <span>{format(new Date(task.due_date), "MMM d")}</span>
-            </div>
+        {/* Title & Description */}
+        <div className="space-y-1">
+          <h4 className="font-bold text-gray-800 leading-tight group-hover:text-indigo-600 transition-colors">
+            {task.title}
+          </h4>
+          {task.description && (
+            <p className="text-xs text-gray-400 line-clamp-2 font-medium">
+              {task.description}
+            </p>
           )}
         </div>
 
-        {/* Assignees Avatars */}
-        {task.assignees && task.assignees.length > 0 && (
-          <div className="flex -space-x-2 overflow-hidden">
-            {task.assignees.map((assignee, idx) => (
-              <div
-                key={assignee.user.id}
-                className="relative inline-block h-6 w-6 rounded-full ring-2 ring-white"
-                title={`${assignee.user.first_name} ${assignee.user.last_name}`}
-              >
-                {assignee.user.profile_pic ? (
-                  <Image
-                    src={assignee.user.profile_pic}
-                    alt={assignee.user.first_name}
-                    fill
-                    className="object-cover rounded-full"
-                  />
-                ) : (
-                  <div className="h-full w-full bg-indigo-100 text-indigo-600 flex items-center justify-center rounded-full text-[10px] font-bold">
-                    {assignee.user.first_name?.[0]}
-                    {assignee.user.last_name?.[0]}
-                  </div>
-                )}
+        {/* Metadata Footer */}
+        <div className="pt-2 flex items-center justify-between border-t border-gray-50">
+          <div className="flex items-center gap-3 text-gray-400">
+            <div className="flex items-center gap-1 hover:text-indigo-500 transition-colors">
+              <MessageSquare size={12} />
+              <span className="text-[10px] font-bold">0</span>
+            </div>
+            <div className="flex items-center gap-1 hover:text-indigo-500 transition-colors">
+              <Paperclip size={12} />
+              <span className="text-[10px] font-bold">0</span>
+            </div>
+            {task.due_date && (
+              <div className="flex items-center gap-1 text-indigo-500 font-bold">
+                <Calendar size={12} />
+                <span className="text-[10px]">
+                  {format(new Date(task.due_date), "MMM d", { locale: es })}
+                </span>
               </div>
-            ))}
+            )}
           </div>
-        )}
+
+          {/* Assignees */}
+          <div className="flex -space-x-1.5 overflow-hidden">
+            {task.assignees && task.assignees.length > 0 ? (
+              task.assignees
+                .slice(0, 3)
+                .map((assignee) => (
+                  <div 
+                    key={assignee.user.id}
+                    className="relative inline-block"
+                    title={`${assignee.user.first_name} ${assignee.user.last_name}`}
+                  >
+                    {assignee.user.profile_pic ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        className="h-6 w-6 rounded-full border-2 border-white ring-1 ring-gray-100 object-cover"
+                        src={assignee.user.profile_pic}
+                        alt=""
+                      />
+                    ) : (
+                      <div className="h-6 w-6 rounded-full border-2 border-white bg-indigo-50 flex items-center justify-center ring-1 ring-gray-100">
+                        <span className="text-[8px] font-black text-indigo-600">
+                          {assignee.user.first_name[0]}{assignee.user.last_name[0]}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ))
+            ) : (
+              <div className="h-6 w-6 rounded-full border-2 border-dashed border-gray-100 flex items-center justify-center">
+                <UserPlus size={10} className="text-gray-200" />
+              </div>
+            )}
+            {task.assignees && task.assignees.length > 3 && (
+              <div className="h-6 w-6 rounded-full border-2 border-white bg-gray-50 flex items-center justify-center text-[8px] font-bold text-gray-400 ring-1 ring-gray-100">
+                +{task.assignees.length - 3}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
 }
+
+import { UserPlus } from "lucide-react";

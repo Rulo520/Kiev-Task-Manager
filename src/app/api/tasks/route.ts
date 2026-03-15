@@ -15,14 +15,17 @@ export async function POST(req: Request) {
     const supabase = getAdminClient();
     let authUser = await getAuthUser(req);
     
-    // Fallback for development: if no auth user, pick the first user from DB
+    // Fallback for development/testing if no valid GHL session is found
     if (!authUser) {
-      const { data: firstUser } = await supabase.from("users").select("id").limit(1).single();
-      if (firstUser) {
-        authUser = { id: firstUser.id } as any;
-      } else {
-        return NextResponse.json({ error: "No users found in database to assign as creator" }, { status: 500 });
+      const { data: firstUser } = await supabase.from("users").select("*").limit(1).single();
+      if (!firstUser) {
+        return NextResponse.json({ error: "No users found in database for fallback" }, { status: 500 });
       }
+      authUser = firstUser as any;
+    }
+
+    if (!authUser) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const body = await req.json();
@@ -32,46 +35,51 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Title and Column ID are required" }, { status: 400 });
     }
 
-    // Determine position
-    const { count } = await supabase
-      .from("tasks")
-      .select("*", { count: "exact", head: true })
-      .eq("column_id", column_id);
-
-    const position = count ? count + 1 : 1;
-
-    // 1. Create Task
+    // Insert Task
     const { data: task, error: taskError } = await supabase
       .from("tasks")
       .insert({
         title,
         description,
         column_id,
-        created_by: authUser?.id,
-        position,
-        priority: priority || "medium",
-        due_date: due_date || null,
+        priority,
+        due_date,
+        created_by: authUser.id,
+        position: 0 // Simplification
       })
       .select()
       .single();
 
     if (taskError) throw taskError;
 
-    // 2. Handle Assignees
-    if (assignees && Array.isArray(assignees) && assignees.length > 0) {
+    // Insert Assignees
+    if (assignees && assignees.length > 0) {
       const assigneeRows = assignees.map((userId: string) => ({
         task_id: task.id,
         user_id: userId
       }));
-      const { error: assigneeError } = await supabase.from("task_assignees").insert(assigneeRows);
-      if (assigneeError) console.error("Error inserting assignees:", assigneeError);
+      const { error: assignError } = await supabase.from("task_assignees").insert(assigneeRows);
+      if (assignError) console.error("Error saving assignees:", assignError);
     }
 
-    return NextResponse.json(task, { status: 201 });
+    // Return the full task with assignees for the UI
+    const { data: fullTask } = await supabase
+      .from("tasks")
+      .select(`
+        *,
+        assignees:task_assignees(
+          user:users(id, first_name, last_name, profile_pic)
+        )
+      `)
+      .eq("id", task.id)
+      .single();
 
-  } catch (error: any) {
-    console.error("Create Task API Error:", error);
-    return NextResponse.json({ error: error.message || "Failed to create task" }, { status: 500 });
+    return NextResponse.json(fullTask || task, { status: 201 });
+
+  } catch (error: unknown) {
+    const err = error as Error;
+    console.error("Task creation error:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
 
@@ -79,39 +87,25 @@ export async function PUT(req: Request) {
   try {
     const supabase = getAdminClient();
     const body = await req.json();
-    const { id, column_id, position, assignees, ...updates } = body;
+    const { id, column_id, position } = body;
 
     if (!id) return NextResponse.json({ error: "Task ID required" }, { status: 400 });
 
-    // Update Task
-    const { error: taskError } = await supabase
+    const updateData: any = {};
+    if (column_id) updateData.column_id = column_id;
+    if (position !== undefined) updateData.position = position;
+
+    const { data, error } = await supabase
       .from("tasks")
-      .update({
-        ...(column_id && { column_id }),
-        ...(position !== undefined && { position }),
-        ...updates,
-        updated_at: new Date().toISOString()
-      })
-      .eq("id", id);
-    
-    if (taskError) throw taskError;
+      .update(updateData)
+      .eq("id", id)
+      .select()
+      .single();
 
-    // Update Assignees
-    if (assignees && Array.isArray(assignees)) {
-      await supabase.from("task_assignees").delete().eq("task_id", id);
-      if (assignees.length > 0) {
-        const assigneeRows = assignees.map((userId: string) => ({
-          task_id: id,
-          user_id: userId
-        }));
-        await supabase.from("task_assignees").insert(assigneeRows);
-      }
-    }
-
-    return NextResponse.json({ success: true });
-
-  } catch (error: any) {
-    console.error("Update Task API Error:", error);
-    return NextResponse.json({ error: "Failed to update task" }, { status: 500 });
+    if (error) throw error;
+    return NextResponse.json(data);
+  } catch (error: unknown) {
+    const err = error as Error;
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

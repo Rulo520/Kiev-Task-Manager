@@ -1,5 +1,6 @@
 import { KanbanBoard } from "@/components/board/KanbanBoard";
 import { createClient } from "@supabase/supabase-js";
+import { Column, Task, User } from "@/types/kanban";
 
 export const dynamic = "force-dynamic";
 
@@ -27,14 +28,15 @@ export default async function Home({ searchParams }: { searchParams: { [key: str
     .select('*')
     .order('position', { ascending: true });
 
-  let finalColumns = columnsData || [];
+  if (colError) console.error("Column fetch error:", colError);
+  let finalColumns = (columnsData || []) as Column[];
 
   if (finalColumns.length === 0) {
     const { data: seededColumns } = await supabase
       .from('columns')
       .insert(DEFAULT_COLUMNS)
       .select();
-    if (seededColumns) finalColumns = seededColumns;
+    if (seededColumns) finalColumns = seededColumns as Column[];
   }
 
   // 2. Fetch Tasks
@@ -48,6 +50,8 @@ export default async function Home({ searchParams }: { searchParams: { [key: str
     `)
     .order('position', { ascending: true });
 
+  if (taskError) console.error("Task fetch error:", taskError);
+
   // 3. Fetch Users
   const { data: dbUsers } = await supabase.from('users').select('*').eq('role', 'agency');
 
@@ -58,7 +62,7 @@ export default async function Home({ searchParams }: { searchParams: { [key: str
         <div className="absolute top-2 left-2 z-[9999] bg-red-600 text-white p-6 rounded-xl font-mono text-sm shadow-2xl border-4 border-white max-w-md">
           <p className="font-bold text-xl mb-2 underline tracking-tighter">🚨 DEBUG V2 ACTIVE 🚨</p>
           <div className="space-y-1">
-            <p>Columns: {columnsData?.length || 0}</p>
+            <p>Columns: {finalColumns.length}</p>
             <p>Tasks stored: {tasksData?.length || 0}</p>
             <p>Supabase Conn: {SUPABASE_URL ? "CONNECTED" : "FAILED"}</p>
             <p>Commit ID: f657134-forced-v2</p>
@@ -89,7 +93,7 @@ export default async function Home({ searchParams }: { searchParams: { [key: str
         </div>
         
         <div className="flex items-center gap-4">
-          <div className="text-sm text-gray-400 hidden md:block italic">
+          <div className="text-sm text-gray-500 hidden md:block italic">
             Deployment Test Level: High
           </div>
           <div className="h-8 w-8 rounded-full bg-indigo-600"></div>
@@ -99,11 +103,11 @@ export default async function Home({ searchParams }: { searchParams: { [key: str
       {/* Board Area */}
       <div className="flex-1 overflow-hidden bg-slate-50 relative">
         <KanbanBoard 
-          key={(tasksData?.length || 0) + (columnsData?.length || 0)} 
-          initialColumns={finalColumns as any} 
-          initialTasks={(tasksData || []) as any} 
+          key={finalColumns.length + (tasksData?.length || 0)} 
+          initialColumns={finalColumns} 
+          initialTasks={(tasksData || []) as unknown as Task[]} 
           role={mockRole}
-          initialAgencyUsers={dbUsers || []}
+          initialAgencyUsers={(dbUsers || []) as User[]}
         />
       </div>
     </main>

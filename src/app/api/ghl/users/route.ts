@@ -7,6 +7,16 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 // Use SERVICE_ROLE_KEY to bypass RLS for server-side syncing
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+interface GHLUser {
+  id: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  name?: string;
+  roles?: { type: string };
+  profilePhoto?: string;
+}
+
 export async function GET() {
   try {
     if (!GHL_ACCESS_TOKEN || !GHL_COMPANY_ID) {
@@ -24,7 +34,6 @@ export async function GET() {
     }
 
     // Initialize a dedicated server-side client that can bypass RLS 
-    // (if SUPABASE_SERVICE_ROLE_KEY is provided in Vercel)
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       auth: {
         autoRefreshToken: false,
@@ -51,7 +60,7 @@ export async function GET() {
     }
 
     const data = await response.json();
-    const allUsers = data.users || [];
+    const allUsers = (data.users || []) as GHLUser[];
 
     if (allUsers.length === 0) {
       return NextResponse.json(
@@ -61,7 +70,7 @@ export async function GET() {
     }
 
     // Sync phase using the elevated permissions client
-    const upsertPromises = allUsers.map((u: any) => {
+    const upsertPromises = allUsers.map((u: GHLUser) => {
       const isAgencyUser = u.roles?.type === "agency";
       return supabase.from("users").upsert(
         {
@@ -90,7 +99,7 @@ export async function GET() {
       }, { status: 500 });
     }
 
-    // Final fetch for the frontend (this specifically needs to see the users)
+    // Final fetch for the frontend
     const { data: agencyUsers, error: fetchError } = await supabase
       .from("users")
       .select("*")
@@ -104,10 +113,11 @@ export async function GET() {
       agency_count: agencyUsers?.length ?? 0
     });
 
-  } catch (error: any) {
-    console.error("GHL Users Sync Error:", error);
+  } catch (error: unknown) {
+    const err = error as Error;
+    console.error("GHL Users Sync Error:", err);
     return NextResponse.json(
-      { error: error.message || "Failed to sync GHL users." },
+      { error: err.message || "Failed to sync GHL users." },
       { status: 500 }
     );
   }
