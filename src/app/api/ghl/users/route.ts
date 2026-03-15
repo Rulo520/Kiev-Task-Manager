@@ -2,21 +2,21 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 const GHL_ACCESS_TOKEN = process.env.GHL_ACCESS_TOKEN;
-const GHL_LOCATION_ID = process.env.GHL_LOCATION_ID;
+const GHL_COMPANY_ID = process.env.GHL_COMPANY_ID;
 
 export async function GET() {
   try {
-    if (!GHL_ACCESS_TOKEN || !GHL_LOCATION_ID) {
+    if (!GHL_ACCESS_TOKEN || !GHL_COMPANY_ID) {
       return NextResponse.json(
-        { error: "Faltan variables de entorno en Vercel. Necesitás GHL_ACCESS_TOKEN y GHL_LOCATION_ID (el ID de la subcuenta donde instalaste la integración privada)." },
+        { error: "Faltan variables en Vercel: necesitás GHL_ACCESS_TOKEN (token de Agencia) y GHL_COMPANY_ID (ID de tu Agencia en GHL)." },
         { status: 500 }
       );
     }
 
-    // GHL requires locationId - it must be the location where the Private Integration was installed
-    // Find it in GHL URL: gohighlevel.com/location/THIS_IS_THE_ID/...
-    const url = new URL("https://services.leadconnectorhq.com/users/");
-    url.searchParams.append("locationId", GHL_LOCATION_ID);
+    // Agency-level token uses /users/search?companyId=
+    // This endpoint is for Agency Private Integration tokens only (not sub-account tokens)
+    const url = new URL("https://services.leadconnectorhq.com/users/search");
+    url.searchParams.append("companyId", GHL_COMPANY_ID);
 
     const response = await fetch(url.toString(), {
       method: "GET",
@@ -39,14 +39,13 @@ export async function GET() {
 
     if (users.length === 0) {
       return NextResponse.json(
-        { error: "La API de GHL devolvió 0 usuarios. Verifica que GHL_LOCATION_ID sea correcto y que el token tenga el scope 'Users > Read'." },
+        { error: "GHL devolvió 0 usuarios. Verificá que GHL_COMPANY_ID sea correcto y que el token sea de nivel Agencia (no de subcuenta)." },
         { status: 200 }
       );
     }
 
     const supabase = await createClient();
 
-    // Sync users into Supabase
     const upsertPromises = users.map((u: any) =>
       supabase.from("users").upsert(
         {
