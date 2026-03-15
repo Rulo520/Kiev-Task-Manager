@@ -96,21 +96,32 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
     setIsModalOpen(true);
   }
 
-  function handleCreateTask(taskData: any) {
-    const newTask = {
-      id: `temp-${Date.now()}`,
-      ...taskData,
-      position: tasks.length + 1,
-      created_by: "current_user",
-      assignees: [],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    
-    setTasks([...tasks, newTask]);
-    setIsModalOpen(false);
-    setActiveColumnId(null);
-    // TODO: Call API to create task
+  async function handleCreateTask(taskData: any) {
+    try {
+      setSyncStatus("syncing");
+      const response = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...taskData,
+          column_id: activeColumnId
+        })
+      });
+
+      if (!response.ok) throw new Error("Failed to save task");
+      
+      const savedTask = await response.json();
+      
+      // Update local state with the real task from DB (includes IDs)
+      setTasks([...tasks, savedTask]);
+      setIsModalOpen(false);
+      setActiveColumnId(null);
+      setSyncStatus("idle");
+    } catch (err: any) {
+      console.error("Error creating task:", err);
+      setSyncError("Error al guardar la tarea en la base de datos.");
+      setSyncStatus("error");
+    }
   }
 
   function onDragOver(event: DragOverEvent) {
@@ -160,12 +171,34 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
     }
   }
 
-  function onDragEnd(event: DragEndEvent) {
+  async function onDragEnd(event: DragEndEvent) {
     setActiveTask(null);
     const { active, over } = event;
     if (!over) return;
 
-    // API save Logic here
+    const activeId = active.id;
+    const overId = over.id;
+
+    // Find the task that was moved
+    const movedTask = tasks.find(t => t.id === activeId);
+    if (!movedTask) return;
+
+    try {
+      // Save the new state to the database
+      const response = await fetch("/api/tasks", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: movedTask.id,
+          column_id: movedTask.column_id,
+          // We could also send position if we implemented reordering fully
+        })
+      });
+
+      if (!response.ok) throw new Error("Failed to update task position");
+    } catch (err) {
+      console.error("Error saving task position:", err);
+    }
   }
 
   return (
