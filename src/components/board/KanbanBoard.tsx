@@ -73,28 +73,27 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
     console.log("Setting up Realtime subscription...");
     setRealtimeConnected("connecting");
 
+    // Remove schema: "public" to be more permissive, adding it back if table is specified
     const channel = supabase
-      .channel("tasks-db-changes")
+      .channel("tasks-channel")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "tasks" },
         async (payload) => {
-          console.log("🔔 Realtime Payload Received:", payload);
+          console.log("🔔 Realtime EVENT RECEIVED:", payload.eventType, payload);
+          const timestamp = new Date().toLocaleTimeString();
           
           if (payload.eventType === "INSERT") {
-            console.log("🆕 Task Inserted:", payload.new.id);
-            setLastEvent(`INSERT: ${payload.new.title || payload.new.id}`);
+            setLastEvent(`INSERT (${timestamp}): ${payload.new.title || payload.new.id}`);
             const newTask = await fetchTaskDetails(payload.new.id);
             if (newTask) {
               setTasks((prev) => {
                 if (prev.find(t => t.id === newTask.id)) return prev;
-                console.log("✅ Adding new task to state:", newTask.title);
                 return [...prev, newTask];
               });
             }
           } else if (payload.eventType === "UPDATE") {
-            console.log("🔄 Task Updated:", payload.new.id, "to column:", payload.new.column_id);
-            setLastEvent(`UPDATE: ${payload.new.id.slice(0, 8)}`);
+            setLastEvent(`UPDATE (${timestamp}): ${payload.new.id.slice(0, 8)}`);
             const updatedTask = await fetchTaskDetails(payload.new.id);
             if (updatedTask) {
               setTasks((prev) => {
@@ -104,18 +103,18 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
               });
             }
           } else if (payload.eventType === "DELETE") {
-            console.log("🗑️ Task Deleted:", payload.old.id);
-            setLastEvent(`DELETE: ${payload.old.id.slice(0, 8)}`);
+            setLastEvent(`DELETE (${timestamp}): ${payload.old.id.slice(0, 8)}`);
             setTasks((prev) => prev.filter(t => t.id !== payload.old.id));
           }
         }
       )
-      .subscribe((status) => {
-        console.log("📡 Subscription Status:", status);
+      .subscribe((status, err) => {
+        console.log("📡 Subscription Status:", status, err);
         if (status === "SUBSCRIBED") {
           setRealtimeConnected("connected");
         } else if (status === "CLOSED" || status === "CHANNEL_ERROR") {
           setRealtimeConnected("error");
+          console.error("Subscription Error Details:", err);
         }
       });
 
@@ -123,6 +122,27 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
       supabase.removeChannel(channel);
     };
   }, [supabase, fetchTaskDetails]);
+
+  const [testResult, setTestResult] = useState<string | null>(null);
+  
+  const runConnectionTest = async () => {
+    setTestResult("Probando...");
+    try {
+      // 1. Try a direct select from the browser
+      const { data, error } = await supabase.from('tasks').select('id').limit(1);
+      
+      if (error) {
+        setTestResult(`❌ Error de RLS/Permisos: ${error.message}`);
+        return;
+      }
+      
+      if (data) {
+        setTestResult(`✅ Lectura OK (${data.length} tareas encontradas). El problema es la REPLICACIÓN.`);
+      }
+    } catch (err: unknown) {
+      setTestResult(`❌ Error fatal: ${(err as Error).message}`);
+    }
+  };
 
   // Client-side background sync for GHL users
   useEffect(() => {
@@ -290,6 +310,13 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
           <div className="flex items-center gap-1.5">
             Último Evento: <span className="text-gray-900 bg-gray-100 px-1.5 py-0.5 rounded font-mono">{lastEvent}</span>
           </div>
+          <div className="h-3 w-px bg-gray-200" />
+          <button 
+            onClick={runConnectionTest}
+            className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100 transition-colors border border-indigo-100 font-bold"
+          >
+            {testResult || "Verificar Conexión"}
+          </button>
         </div>
         
         {realtimeConnected === "error" && (
