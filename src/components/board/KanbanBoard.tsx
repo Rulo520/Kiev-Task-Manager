@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -18,6 +18,7 @@ import { Column, Task, User, Role } from "@/types/kanban";
 import { Column as BoardColumn } from "./Column";
 import { TaskCard } from "./TaskCard";
 import { CreateTaskModal } from "./CreateTaskModal";
+import { createClient } from "@/lib/supabase/client";
 
 interface KanbanBoardProps {
   initialColumns: Column[];
@@ -34,7 +35,63 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
   const [, setSyncStatus] = useState<"idle" | "syncing" | "error">("idle");
   const [syncError, setSyncError] = useState<string | null>(null);
 
-  // Client-side background sync
+  const supabase = createClient();
+
+  // Helper to fetch full task details (including assignees)
+  const fetchTaskDetails = useCallback(async (taskId: string) => {
+    const { data, error } = await supabase
+      .from("tasks")
+      .select(`
+        *,
+        assignees:task_assignees(
+          user:users(id, first_name, last_name, profile_pic)
+        )
+      `)
+      .eq("id", taskId)
+      .single();
+    
+    if (error) console.error("Error fetching task details:", error);
+    return data as unknown as Task;
+  }, [supabase]);
+
+  // Real-time listener for tasks
+  useEffect(() => {
+    const channel = supabase
+      .channel("tasks-db-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tasks" },
+        async (payload) => {
+          console.log("Realtime Change:", payload);
+          
+          if (payload.eventType === "INSERT") {
+            const newTask = await fetchTaskDetails(payload.new.id);
+            if (newTask) {
+              setTasks((prev) => {
+                if (prev.find(t => t.id === newTask.id)) return prev;
+                return [...prev, newTask];
+              });
+            }
+          } else if (payload.eventType === "UPDATE") {
+            const updatedTask = await fetchTaskDetails(payload.new.id);
+            if (updatedTask) {
+              setTasks((prev) => 
+                prev.map(t => t.id === updatedTask.id ? updatedTask : t)
+              );
+            }
+          } else if (payload.eventType === "DELETE") {
+            setTasks((prev) => prev.filter(t => t.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase, fetchTaskDetails]);
+
+  // Client-side background sync for GHL users
   useEffect(() => {
     if (role === "agency") {
       setSyncStatus("syncing");
@@ -47,7 +104,6 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
           return data;
         })
         .then((data) => {
-          // API may return 200 with error field if GHL gave 0 users
           if (data.error) {
             setSyncStatus("error");
             setSyncError(data.error);
@@ -55,9 +111,6 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
             setAgencyUsers(data.users);
             setSyncStatus("idle");
             setSyncError(null);
-          } else {
-            setSyncStatus("error");
-            setSyncError("GHL devolvió 0 usuarios. Verificá que GHL_COMPANY_ID y GHL_ACCESS_TOKEN (token de Agencia) estén correctamente configurados en Vercel.");
           }
         })
         .catch((err) => {
@@ -70,9 +123,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 5,
-      },
+      activationConstraint: { distance: 5 },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
@@ -116,8 +167,12 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
       
       const savedTask = await response.json();
       
-      // Update local state with the real task from DB (includes IDs)
-      setTasks([...tasks, savedTask]);
+      // Update local state (Realtime handles this too, but we do it for immediate feedback)
+      setTasks((prev) => {
+        if (prev.find(t => t.id === savedTask.id)) return prev;
+        return [...prev, savedTask];
+      });
+      
       setIsModalOpen(false);
       setActiveColumnId(null);
       setSyncStatus("idle");
@@ -144,20 +199,17 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
 
     if (!isActiveTask) return;
 
-    // Dropping a Task over another Task (same or different column)
     if (isActiveTask && isOverTask) {
       setTasks((tasks) => {
         const activeIndex = tasks.findIndex((t) => t.id === activeId);
         const overIndex = tasks.findIndex((t) => t.id === overId);
 
         if (tasks[activeIndex].column_id !== tasks[overIndex].column_id) {
-          // Moving to another column via a task
           const newTasks = [...tasks];
           newTasks[activeIndex].column_id = tasks[overIndex].column_id;
           return newTasks;
         }
 
-        // Same column reordering
         const newTasks = [...tasks];
         const [movedTask] = newTasks.splice(activeIndex, 1);
         newTasks.splice(overIndex, 0, movedTask);
@@ -165,7 +217,6 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
       });
     }
 
-    // Dropping a Task over an empty Column
     if (isActiveTask && isOverColumn) {
       setTasks((tasks) => {
         const activeIndex = tasks.findIndex((t) => t.id === activeId);
@@ -182,24 +233,23 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
     if (!over) return;
 
     const activeId = active.id;
-
-    // Find the task that was moved
+    
+    // Crucial: access the LATEST state by using a temporary reference 
+    // or relying on the state update from onDragOver having completed.
+    // In onDragEnd, 'tasks' reflects the state AFTER onDragOver modifications.
     const movedTask = tasks.find(t => t.id === activeId);
     if (!movedTask) return;
 
     try {
-      // Save the new state to the database
-      const response = await fetch("/api/tasks", {
+      await fetch("/api/tasks", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id: movedTask.id,
           column_id: movedTask.column_id,
-          // We could also send position if we implemented reordering fully
+          // Position could be added here if we track numerical order
         })
       });
-
-      if (!response.ok) throw new Error("Failed to update task position");
     } catch (err) {
       console.error("Error saving task position:", err);
     }
