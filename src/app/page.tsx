@@ -29,19 +29,12 @@ export default async function Home({ searchParams }: { searchParams: { [key: str
 
   let finalColumns = columnsData || [];
 
-  // SEED COLUMNS: Only if we are SURE it's empty
   if (finalColumns.length === 0) {
-    const { data: seededColumns, error: seedError } = await supabase
+    const { data: seededColumns } = await supabase
       .from('columns')
       .insert(DEFAULT_COLUMNS)
       .select();
-    
-    if (!seedError && seededColumns) {
-      finalColumns = seededColumns;
-    } else {
-      // LAST RESORT FALLBACK (String IDs - will cause Task Insert errors but UI will show up)
-      finalColumns = DEFAULT_COLUMNS.map((c, i) => ({ ...c, id: `fallback-${i}` }));
-    }
+    if (seededColumns) finalColumns = seededColumns;
   }
 
   // 2. Fetch Tasks
@@ -56,59 +49,57 @@ export default async function Home({ searchParams }: { searchParams: { [key: str
     .order('position', { ascending: true });
 
   // 3. Fetch Users
-  const { data: dbUsers } = await supabase
-    .from('users')
-    .select('*')
-    .eq('role', 'agency');
+  const { data: dbUsers } = await supabase.from('users').select('*').eq('role', 'agency');
 
   return (
     <main className="flex flex-col h-screen w-full relative">
-      {/* Debug Overly (only if ?debug=true) */}
+      {/* Debug Overlay (Red/Visible) */}
       {isDebug && (
-        <div className="absolute top-20 left-6 right-6 z-50 bg-black/90 text-green-400 p-4 rounded-lg font-mono text-xs max-h-[400px] overflow-auto border border-green-500 shadow-2xl">
-          <p className="font-bold text-white mb-2">DEBUG MODE ACTIVATED</p>
-          <p>Supabase URL: {SUPABASE_URL ? "OK" : "MISSING"}</p>
-          <p>Service Role Key: {process.env.SUPABASE_SERVICE_ROLE_KEY ? "OK" : "MISSING (Using Anon)"}</p>
-          <p>Columns found: {columnsData?.length || 0}</p>
-          <p>Tasks found: {tasksData?.length || 0}</p>
-          <p>Col Error: {colError?.message || "None"}</p>
-          <p>Task Error: {taskError?.message || "None"}</p>
-          <hr className="my-2 opacity-30" />
-          <p>RAW COLUMNS: {JSON.stringify(finalColumns.map(c => ({id: c.id, title: c.title})), null, 2)}</p>
-          <p className="mt-2">RAW TASKS: {JSON.stringify((tasksData || []).map(t => ({id: t.id, title: t.title, col: t.column_id})), null, 2)}</p>
+        <div className="absolute top-2 left-2 z-[9999] bg-red-600 text-white p-6 rounded-xl font-mono text-sm shadow-2xl border-4 border-white max-w-md">
+          <p className="font-bold text-xl mb-2 underline tracking-tighter">🚨 DEBUG V2 ACTIVE 🚨</p>
+          <div className="space-y-1">
+            <p>Columns: {columnsData?.length || 0}</p>
+            <p>Tasks stored: {tasksData?.length || 0}</p>
+            <p>Supabase Conn: {SUPABASE_URL ? "CONNECTED" : "FAILED"}</p>
+            <p>Commit ID: f657134-forced-v2</p>
+          </div>
+          <hr className="my-3 border-red-400" />
+          <p className="text-[10px] opacity-70">RAW TASKS: {JSON.stringify((tasksData || []).map(t => t.title))}</p>
         </div>
       )}
 
       {/* Header */}
-      <header className="h-16 flex items-center justify-between px-6 bg-white border-b border-gray-200 shrink-0">
+      <header className="h-16 flex items-center justify-between px-6 bg-white border-b border-gray-200 shrink-0 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold text-sm">
-            K
+          {/* CRITICAL LITMUS TEST: NEW LOGO TEXT */}
+          <div className="w-8 h-8 rounded-lg bg-red-600 flex items-center justify-center text-white font-black text-lg shadow-md animate-pulse">
+            V2
           </div>
-          <h1 className="text-lg font-bold text-gray-800 tracking-tight">
-            Gestor de Tareas <span className="text-gray-400 font-normal ml-1">| {mockRole === "agency" ? "Agencia" : "Cliente"}</span>
+          <h1 className="text-xl font-black text-gray-900 tracking-tighter">
+            GESTOR KIEV <span className="text-red-600">V2.0</span>
           </h1>
+          
+          {/* HIGHLY VISIBLE DEBUG BUTTON ON THE LEFT */}
+          <a 
+            href="?debug=true"
+            className="ml-4 px-3 py-1 bg-red-100 text-red-600 text-xs font-bold rounded-full hover:bg-red-200 transition-colors border border-red-200"
+          >
+            ACTIVATE DEBUG
+          </a>
         </div>
         
         <div className="flex items-center gap-4">
-          <button 
-            onClick={() => window.location.href = window.location.pathname + "?debug=true"}
-            className="text-[10px] text-gray-300 hover:text-gray-500 uppercase tracking-widest"
-          >
-            Debug
-          </button>
-          <div className="text-sm text-gray-500 hidden md:block">
-            Sincronizado con Go High Level
+          <div className="text-sm text-gray-400 hidden md:block italic">
+            Deployment Test Level: High
           </div>
-          <div className="h-8 w-8 rounded-full bg-indigo-100 border border-indigo-200"></div>
+          <div className="h-8 w-8 rounded-full bg-indigo-600"></div>
         </div>
       </header>
 
       {/* Board Area */}
-      <div className="flex-1 overflow-hidden bg-[url('https://grainy-gradients.vercel.app/noise.svg')] bg-slate-50 relative">
-        <div className="absolute inset-0 bg-gradient-to-br from-indigo-50/40 via-white/50 to-blue-50/40 pointer-events-none" />
+      <div className="flex-1 overflow-hidden bg-slate-50 relative">
         <KanbanBoard 
-          key={finalColumns.length + (tasksData?.length || 0)} 
+          key={(tasksData?.length || 0) + (columnsData?.length || 0)} 
           initialColumns={finalColumns as any} 
           initialTasks={(tasksData || []) as any} 
           role={mockRole}
