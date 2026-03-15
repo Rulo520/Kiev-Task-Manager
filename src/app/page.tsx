@@ -1,60 +1,57 @@
 import { KanbanBoard } from "@/components/board/KanbanBoard";
-import { getAuthUser } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
 
-// We mock columns and tasks for the first load to test the UI 
-// without needing dummy data perfectly set up in DB immediately.
-const DUMMY_COLUMNS = [
-  { id: "todo", title: "Para Hacer", position: 1 },
-  { id: "in_progress", title: "En Progreso", position: 2 },
-  { id: "review", title: "Revisión", position: 3 },
-  { id: "done", title: "Completado", position: 4 },
-];
-
-const DUMMY_TASKS = [
-  {
-    id: "task-1",
-    title: "Crear automatización de bienvenida",
-    description: "Configurar el workflow en GHL para los leads entrantes de Facebook Ads.",
-    column_id: "todo",
-    position: 1,
-    created_by: "user1",
-    priority: "high",
-    due_date: "2026-03-20T00:00:00Z",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    assignees: [
-      { user: { id: "a", first_name: "Juan", last_name: "P", role: "agency", profile_pic: null } }
-    ]
-  },
-  {
-    id: "task-2",
-    title: "Cambiar logo en Landing Page",
-    description: "Requerimiento de diseño del cliente.",
-    column_id: "in_progress",
-    position: 1,
-    created_by: "client1",
-    priority: "medium",
-    due_date: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    assignees: []
-  }
-];
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export default async function Home({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined } }) {
-  // Try to authenticate via URL parameter or headers
-  // For dev testing outside iframe, we simulate a role
   const mockRole = (searchParams?.role as "agency" | "client") || "agency"; 
   
-  // Directly query the current synced users from Supabase for the initial render
-  const supabase = await createClient();
+  // Use service role client to ensure we can read/seed everything on load
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false }
+  });
+
+  // 1. Fetch Columns
+  let { data: columns } = await supabase
+    .from('columns')
+    .select('*')
+    .order('position', { ascending: true });
+
+  // SEED COLUMNS: If the table is empty, seed it automatically
+  if (!columns || columns.length === 0) {
+    const defaultColumns = [
+      { title: "Para Hacer", position: 1 },
+      { title: "En Progreso", position: 2 },
+      { title: "Revisión", position: 3 },
+      { title: "Completado", position: 4 },
+    ];
+    
+    // Using upsert/insert with selection to get back the generated UUIDs
+    const { data: seededColumns } = await supabase
+      .from('columns')
+      .insert(defaultColumns)
+      .select();
+    
+    columns = seededColumns || [];
+  }
+
+  // 2. Fetch Tasks (including assignees)
+  let { data: tasks } = await supabase
+    .from('tasks')
+    .select(`
+      *,
+      assignees:task_assignees(
+        user:users(id, first_name, last_name, profile_pic)
+      )
+    `)
+    .order('position', { ascending: true });
+
+  // 3. Fetch Agency Users (for assignment list)
   const { data: dbUsers } = await supabase
     .from('users')
     .select('*')
     .eq('role', 'agency');
-    
-  const agencyUsers = dbUsers || [];
 
   return (
     <main className="flex flex-col h-screen w-full">
@@ -81,10 +78,10 @@ export default async function Home({ searchParams }: { searchParams: { [key: str
       <div className="flex-1 overflow-hidden bg-[url('https://grainy-gradients.vercel.app/noise.svg')] bg-slate-50 relative">
         <div className="absolute inset-0 bg-gradient-to-br from-indigo-50/40 via-white/50 to-blue-50/40 pointer-events-none" />
         <KanbanBoard 
-          initialColumns={DUMMY_COLUMNS} 
-          initialTasks={DUMMY_TASKS as any} 
+          initialColumns={(columns || []) as any} 
+          initialTasks={(tasks || []) as any} 
           role={mockRole}
-          initialAgencyUsers={agencyUsers}
+          initialAgencyUsers={dbUsers || []}
         />
       </div>
     </main>
