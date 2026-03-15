@@ -4,7 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 const GHL_ACCESS_TOKEN = process.env.GHL_ACCESS_TOKEN;
 const GHL_COMPANY_ID = process.env.GHL_COMPANY_ID;
 
-export async function GET() {
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const debug = searchParams.get("debug") === "1";
+
   try {
     if (!GHL_ACCESS_TOKEN || !GHL_COMPANY_ID) {
       return NextResponse.json(
@@ -13,8 +16,6 @@ export async function GET() {
       );
     }
 
-    // Agency-level token uses /users/search?companyId=
-    // This endpoint is for Agency Private Integration tokens only (not sub-account tokens)
     const url = new URL("https://services.leadconnectorhq.com/users/search");
     url.searchParams.append("companyId", GHL_COMPANY_ID);
 
@@ -28,14 +29,27 @@ export async function GET() {
       },
     });
 
+    const rawText = await response.text();
+    console.log("GHL status:", response.status);
+    console.log("GHL raw response:", rawText.slice(0, 1000));
+
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("GHL API Error:", response.status, errorText);
-      throw new Error(`GHL API responded with status ${response.status}: ${errorText}`);
+      throw new Error(`GHL API responded with status ${response.status}: ${rawText}`);
     }
 
-    const data = await response.json();
-    const users = data.users || [];
+    const data = JSON.parse(rawText);
+
+    // Debug mode: return full raw response for inspection
+    if (debug) {
+      return NextResponse.json({ 
+        status: response.status,
+        keys: Object.keys(data),
+        raw: data
+      });
+    }
+
+    // Try multiple possible keys the search endpoint might use
+    const users = data.users || data.data || data.results || (Array.isArray(data) ? data : []);
 
     if (users.length === 0) {
       return NextResponse.json(
