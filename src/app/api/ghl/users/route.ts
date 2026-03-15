@@ -4,18 +4,17 @@ import { createClient } from "@/lib/supabase/server";
 const GHL_ACCESS_TOKEN = process.env.GHL_ACCESS_TOKEN;
 const GHL_COMPANY_ID = process.env.GHL_COMPANY_ID;
 
-export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const debug = searchParams.get("debug") === "1";
-
+export async function GET() {
   try {
     if (!GHL_ACCESS_TOKEN || !GHL_COMPANY_ID) {
       return NextResponse.json(
-        { error: "Faltan variables en Vercel: necesitás GHL_ACCESS_TOKEN (token de Agencia) y GHL_COMPANY_ID (ID de tu Agencia en GHL)." },
+        { error: "Faltan variables en Vercel: GHL_ACCESS_TOKEN y GHL_COMPANY_ID son requeridos." },
         { status: 500 }
       );
     }
 
+    // Agency-level Private Integration token + /users/search?companyId= 
+    // returns ALL users across the agency (both agency staff and client users)
     const url = new URL("https://services.leadconnectorhq.com/users/search");
     url.searchParams.append("companyId", GHL_COMPANY_ID);
 
@@ -29,62 +28,57 @@ export async function GET(req: Request) {
       },
     });
 
-    const rawText = await response.text();
-    console.log("GHL status:", response.status);
-    console.log("GHL raw response:", rawText.slice(0, 1000));
-
     if (!response.ok) {
-      throw new Error(`GHL API responded with status ${response.status}: ${rawText}`);
+      const errorText = await response.text();
+      throw new Error(`GHL API responded with status ${response.status}: ${errorText}`);
     }
 
-    const data = JSON.parse(rawText);
+    const data = await response.json();
+    const allUsers = data.users || [];
 
-    // Debug mode: return full raw response for inspection
-    if (debug) {
-      return NextResponse.json({ 
-        status: response.status,
-        keys: Object.keys(data),
-        raw: data
-      });
-    }
-
-    // Try multiple possible keys the search endpoint might use
-    const users = data.users || data.data || data.results || (Array.isArray(data) ? data : []);
-
-    if (users.length === 0) {
+    if (allUsers.length === 0) {
       return NextResponse.json(
-        { error: "GHL devolvió 0 usuarios. Verificá que GHL_COMPANY_ID sea correcto y que el token sea de nivel Agencia (no de subcuenta)." },
+        { error: "GHL no devolvió usuarios. Verificá que GHL_COMPANY_ID y el token de Agencia sean correctos." },
         { status: 200 }
       );
     }
 
     const supabase = await createClient();
 
-    const upsertPromises = users.map((u: any) =>
-      supabase.from("users").upsert(
+    // Distinguish agency staff from client users based on GHL roles.type
+    // roles.type: "agency" → Casa Kiev team members
+    // roles.type: "account" → Client sub-account users
+    const upsertPromises = allUsers.map((u: any) => {
+      const isAgencyUser = u.roles?.type === "agency";
+      return supabase.from("users").upsert(
         {
           ghl_user_id: u.id,
           email: u.email,
           first_name: u.firstName || u.name?.split(" ")[0] || "",
           last_name: u.lastName || u.name?.split(" ").slice(1).join(" ") || "",
-          role: "agency",
+          role: isAgencyUser ? "agency" : "client",
           profile_pic: u.profilePhoto || null,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "ghl_user_id" }
-      )
-    );
+      );
+    });
 
     await Promise.all(upsertPromises);
 
-    const { data: syncedUsers, error: dbError } = await supabase
+    // Return only agency users to the frontend (for task assignment)
+    const { data: agencyUsers, error: dbError } = await supabase
       .from("users")
       .select("*")
       .eq("role", "agency");
 
     if (dbError) throw dbError;
 
-    return NextResponse.json({ users: syncedUsers });
+    return NextResponse.json({ 
+      users: agencyUsers,
+      total_synced: allUsers.length,
+      agency_count: agencyUsers?.length ?? 0
+    });
 
   } catch (error: any) {
     console.error("GHL Users Sync Error:", error);
