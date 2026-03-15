@@ -35,6 +35,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Title and Column ID are required" }, { status: 400 });
     }
 
+    // Get current max position in this column
+    const { count } = await supabase
+      .from("tasks")
+      .select("*", { count: "exact", head: true })
+      .eq("column_id", column_id);
+
     // Insert Task
     const { data: task, error: taskError } = await supabase
       .from("tasks")
@@ -45,7 +51,7 @@ export async function POST(req: Request) {
         priority,
         due_date,
         created_by: authUser.id,
-        position: 0 // Simplification
+        position: count || 0
       })
       .select()
       .single();

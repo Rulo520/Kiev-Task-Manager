@@ -29,9 +29,12 @@ interface KanbanBoardProps {
 }
 
 export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyUsers = [] }: KanbanBoardProps) {
+  // Ensure initial tasks are sorted
+  const sortedInitial = [...initialTasks].sort((a, b) => (a.position - b.position) || (a.id > b.id ? 1 : -1));
+  
   const [columns] = useState<Column[]>(initialColumns);
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
-  const tasksRef = useRef<Task[]>(initialTasks);
+  const [tasks, setTasks] = useState<Task[]>(sortedInitial);
+  const tasksRef = useRef<Task[]>(sortedInitial);
   
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [agencyUsers, setAgencyUsers] = useState<User[]>(initialAgencyUsers);
@@ -41,14 +44,12 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
   const [lastEvent, setLastEvent] = useState<string>("Ninguno");
   const [syncError, setSyncError] = useState<string | null>(null);
 
-  const supabase = useRef(createClient()).current; // Persistent client
+  const supabase = useRef(createClient()).current; 
 
-  // Keep Ref in sync with state
   useEffect(() => {
     tasksRef.current = tasks;
   }, [tasks]);
 
-  // Helper to fetch full task details (including assignees)
   const fetchTaskDetails = useCallback(async (taskId: string) => {
     const { data, error } = await supabase
       .from("tasks")
@@ -68,53 +69,47 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
     return data as unknown as Task;
   }, [supabase]);
 
-  // Real-time listener for tasks
   useEffect(() => {
     console.log("Setting up Realtime subscription...");
     setRealtimeConnected("connecting");
 
-    // Remove schema: "public" to be more permissive, adding it back if table is specified
     const channel = supabase
-      .channel("tasks-channel")
+      .channel("public-tasks")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "tasks" },
         async (payload) => {
-          console.log("🔔 Realtime EVENT RECEIVED:", payload.eventType, payload);
-          const timestamp = new Date().toLocaleTimeString();
+          console.log("🔥 REALTIME EVENT DETECTED:", payload.eventType, payload);
+          setLastEvent(`${payload.eventType} @ ${new Date().toLocaleTimeString()}`);
           
           if (payload.eventType === "INSERT") {
-            setLastEvent(`INSERT (${timestamp}): ${payload.new.title || payload.new.id}`);
             const newTask = await fetchTaskDetails(payload.new.id);
             if (newTask) {
               setTasks((prev) => {
                 if (prev.find(t => t.id === newTask.id)) return prev;
-                return [...prev, newTask];
+                return [...prev, newTask].sort((a, b) => (a.position - b.position) || (a.id > b.id ? 1 : -1));
               });
             }
           } else if (payload.eventType === "UPDATE") {
-            setLastEvent(`UPDATE (${timestamp}): ${payload.new.id.slice(0, 8)}`);
             const updatedTask = await fetchTaskDetails(payload.new.id);
             if (updatedTask) {
-              setTasks((prev) => {
-                const index = prev.findIndex(t => t.id === updatedTask.id);
-                if (index !== -1 && prev[index].updated_at === updatedTask.updated_at) return prev;
-                return prev.map(t => t.id === updatedTask.id ? updatedTask : t);
-              });
+              setTasks((prev) => 
+                prev.map(t => t.id === updatedTask.id ? updatedTask : t)
+                    .sort((a, b) => (a.position - b.position) || (a.id > b.id ? 1 : -1))
+              );
             }
           } else if (payload.eventType === "DELETE") {
-            setLastEvent(`DELETE (${timestamp}): ${payload.old.id.slice(0, 8)}`);
             setTasks((prev) => prev.filter(t => t.id !== payload.old.id));
           }
         }
       )
       .subscribe((status, err) => {
-        console.log("📡 Subscription Status:", status, err);
+        console.log("📡 Channel Status Changed:", status, err);
         if (status === "SUBSCRIBED") {
           setRealtimeConnected("connected");
-        } else if (status === "CLOSED" || status === "CHANNEL_ERROR") {
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
           setRealtimeConnected("error");
-          console.error("Subscription Error Details:", err);
+          console.error("Realtime connection failed:", status, err);
         }
       });
 
@@ -128,14 +123,11 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
   const runConnectionTest = async () => {
     setTestResult("Probando...");
     try {
-      // 1. Try a direct select from the browser
       const { data, error } = await supabase.from('tasks').select('id').limit(1);
-      
       if (error) {
         setTestResult(`❌ Error de RLS/Permisos: ${error.message}`);
         return;
       }
-      
       if (data) {
         setTestResult(`✅ Lectura OK (${data.length} tareas encontradas). El problema es la REPLICACIÓN.`);
       }
@@ -144,7 +136,6 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
     }
   };
 
-  // Client-side background sync for GHL users
   useEffect(() => {
     if (role === "agency") {
       setSyncStatus("syncing");
@@ -207,7 +198,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
       
       setTasks((prev) => {
         if (prev.find(t => t.id === savedTask.id)) return prev;
-        return [...prev, savedTask];
+        return [...prev, savedTask].sort((a, b) => (a.position - b.position) || (a.id > b.id ? 1 : -1));
       });
       
       setIsModalOpen(false);
@@ -246,7 +237,6 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
           task.column_id = prevTasks[overIndex].column_id;
           newTasks[activeIndex] = task;
         } else {
-          // Reorder same column
           const [moved] = newTasks.splice(activeIndex, 1);
           newTasks.splice(overIndex, 0, moved);
         }
@@ -264,11 +254,14 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
     const { active, over } = event;
     if (!over) return;
 
-    // USE THE REF: Always get the latest task state for persistence
     const movedTask = tasksRef.current.find(t => t.id === active.id);
     if (!movedTask) return;
 
-    console.log("💾 Persisting task movement:", movedTask.title, "to", movedTask.column_id);
+    // Calculate new position based on the index in the current tasks array
+    const columnTasks = tasks.filter(t => t.column_id === movedTask.column_id);
+    const newPosition = columnTasks.findIndex(t => t.id === movedTask.id);
+
+    console.log("💾 Persisting task:", movedTask.title, "Pos:", newPosition, "in", movedTask.column_id);
 
     try {
       setSyncStatus("syncing");
@@ -278,6 +271,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
         body: JSON.stringify({
           id: movedTask.id,
           column_id: movedTask.column_id,
+          position: newPosition
         })
       });
       if (!res.ok) throw new Error("Persistence failed");
@@ -290,7 +284,6 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
 
   return (
     <div className="flex flex-col h-full bg-slate-50/50">
-      {/* Mini Diagnostic Bar */}
       <div className="px-8 py-2 bg-white/80 backdrop-blur-sm border-b border-gray-100 flex items-center justify-between text-[11px] font-medium text-gray-500">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1.5">
