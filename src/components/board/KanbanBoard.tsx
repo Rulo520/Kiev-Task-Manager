@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -32,13 +31,14 @@ interface KanbanBoardProps {
 export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyUsers = [] }: KanbanBoardProps) {
   const [columns] = useState<Column[]>(initialColumns);
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
-  const tasksRef = useRef<Task[]>(initialTasks); // Ref to always have the LATEST tasks for events
+  const tasksRef = useRef<Task[]>(initialTasks);
   
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [agencyUsers, setAgencyUsers] = useState<User[]>(initialAgencyUsers);
   
   const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "error">("idle");
   const [realtimeConnected, setRealtimeConnected] = useState<"connecting" | "connected" | "error">("connecting");
+  const [lastEvent, setLastEvent] = useState<string>("Ninguno");
   const [syncError, setSyncError] = useState<string | null>(null);
 
   const supabase = createClient();
@@ -82,21 +82,30 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
           console.log("🔔 Realtime Payload Received:", payload);
           
           if (payload.eventType === "INSERT") {
+            console.log("🆕 Task Inserted:", payload.new.id);
+            setLastEvent(`INSERT: ${payload.new.title || payload.new.id}`);
             const newTask = await fetchTaskDetails(payload.new.id);
             if (newTask) {
               setTasks((prev) => {
                 if (prev.find(t => t.id === newTask.id)) return prev;
+                console.log("✅ Adding new task to state:", newTask.title);
                 return [...prev, newTask];
               });
             }
           } else if (payload.eventType === "UPDATE") {
+            console.log("🔄 Task Updated:", payload.new.id, "to column:", payload.new.column_id);
+            setLastEvent(`UPDATE: ${payload.new.id.slice(0, 8)}`);
             const updatedTask = await fetchTaskDetails(payload.new.id);
             if (updatedTask) {
-              setTasks((prev) => 
-                prev.map(t => t.id === updatedTask.id ? updatedTask : t)
-              );
+              setTasks((prev) => {
+                const index = prev.findIndex(t => t.id === updatedTask.id);
+                if (index !== -1 && prev[index].updated_at === updatedTask.updated_at) return prev;
+                return prev.map(t => t.id === updatedTask.id ? updatedTask : t);
+              });
             }
           } else if (payload.eventType === "DELETE") {
+            console.log("🗑️ Task Deleted:", payload.old.id);
+            setLastEvent(`DELETE: ${payload.old.id.slice(0, 8)}`);
             setTasks((prev) => prev.filter(t => t.id !== payload.old.id));
           }
         }
@@ -276,6 +285,10 @@ export function KanbanBoard({ initialColumns, initialTasks, role, initialAgencyU
           <div className="h-3 w-px bg-gray-200" />
           <div className="flex items-center gap-1.5">
             Estado: <span className={syncStatus === "error" ? "text-red-500" : "text-gray-900"}>{syncStatus.toUpperCase()}</span>
+          </div>
+          <div className="h-3 w-px bg-gray-200" />
+          <div className="flex items-center gap-1.5">
+            Último Evento: <span className="text-gray-900 bg-gray-100 px-1.5 py-0.5 rounded font-mono">{lastEvent}</span>
           </div>
         </div>
         
