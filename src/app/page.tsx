@@ -3,27 +3,25 @@ import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
 
-// Server-side environment check
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 const DEFAULT_COLUMNS = [
-  { id: "todo", title: "Para Hacer", position: 1 },
-  { id: "in_progress", title: "En Progreso", position: 2 },
-  { id: "review", title: "Revisión", position: 3 },
-  { id: "done", title: "Completado", position: 4 },
+  { title: "Para Hacer", position: 1 },
+  { title: "En Progreso", position: 2 },
+  { title: "Revisión", position: 3 },
+  { title: "Completado", position: 4 },
 ];
 
 export default async function Home({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined } }) {
   const mockRole = (searchParams?.role as "agency" | "client") || "agency"; 
+  const isDebug = searchParams?.debug === "true";
   
-  // Use service role client to ensure we can read/seed everything on load
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false }
   });
 
   // 1. Fetch Columns
-  console.log(`[${new Date().toISOString()}] Fetching board data...`);
   const { data: columnsData, error: colError } = await supabase
     .from('columns')
     .select('*')
@@ -31,25 +29,22 @@ export default async function Home({ searchParams }: { searchParams: { [key: str
 
   let finalColumns = columnsData || [];
 
-  // SEED COLUMNS: If the table is remote-empty, try to seed it
+  // SEED COLUMNS: Only if we are SURE it's empty
   if (finalColumns.length === 0) {
-    console.log("Seeding default columns into Supabase...");
     const { data: seededColumns, error: seedError } = await supabase
       .from('columns')
-      .insert(DEFAULT_COLUMNS.map(({title, position}) => ({ title, position })))
+      .insert(DEFAULT_COLUMNS)
       .select();
     
-    if (seedError) {
-      console.error("Seeding failed (likely RLS or missing Service Role Key):", seedError);
-      // HARD FALLBACK: If seeding fails, we use the default columns anyway 
-      // so the user at least SEES something. 
-      finalColumns = DEFAULT_COLUMNS;
+    if (!seedError && seededColumns) {
+      finalColumns = seededColumns;
     } else {
-      finalColumns = seededColumns || DEFAULT_COLUMNS;
+      // LAST RESORT FALLBACK (String IDs - will cause Task Insert errors but UI will show up)
+      finalColumns = DEFAULT_COLUMNS.map((c, i) => ({ ...c, id: `fallback-${i}` }));
     }
   }
 
-  // 2. Fetch Tasks (including assignees)
+  // 2. Fetch Tasks
   const { data: tasksData, error: taskError } = await supabase
     .from('tasks')
     .select(`
@@ -60,18 +55,30 @@ export default async function Home({ searchParams }: { searchParams: { [key: str
     `)
     .order('position', { ascending: true });
 
-  if (taskError) {
-    console.error("Error fetching tasks:", taskError);
-  }
-
-  // 3. Fetch Agency Users (for assignment list)
+  // 3. Fetch Users
   const { data: dbUsers } = await supabase
     .from('users')
     .select('*')
     .eq('role', 'agency');
 
   return (
-    <main className="flex flex-col h-screen w-full">
+    <main className="flex flex-col h-screen w-full relative">
+      {/* Debug Overly (only if ?debug=true) */}
+      {isDebug && (
+        <div className="absolute top-20 left-6 right-6 z-50 bg-black/90 text-green-400 p-4 rounded-lg font-mono text-xs max-h-[400px] overflow-auto border border-green-500 shadow-2xl">
+          <p className="font-bold text-white mb-2">DEBUG MODE ACTIVATED</p>
+          <p>Supabase URL: {SUPABASE_URL ? "OK" : "MISSING"}</p>
+          <p>Service Role Key: {process.env.SUPABASE_SERVICE_ROLE_KEY ? "OK" : "MISSING (Using Anon)"}</p>
+          <p>Columns found: {columnsData?.length || 0}</p>
+          <p>Tasks found: {tasksData?.length || 0}</p>
+          <p>Col Error: {colError?.message || "None"}</p>
+          <p>Task Error: {taskError?.message || "None"}</p>
+          <hr className="my-2 opacity-30" />
+          <p>RAW COLUMNS: {JSON.stringify(finalColumns.map(c => ({id: c.id, title: c.title})), null, 2)}</p>
+          <p className="mt-2">RAW TASKS: {JSON.stringify((tasksData || []).map(t => ({id: t.id, title: t.title, col: t.column_id})), null, 2)}</p>
+        </div>
+      )}
+
       {/* Header */}
       <header className="h-16 flex items-center justify-between px-6 bg-white border-b border-gray-200 shrink-0">
         <div className="flex items-center gap-3">
@@ -84,6 +91,12 @@ export default async function Home({ searchParams }: { searchParams: { [key: str
         </div>
         
         <div className="flex items-center gap-4">
+          <button 
+            onClick={() => window.location.href = window.location.pathname + "?debug=true"}
+            className="text-[10px] text-gray-300 hover:text-gray-500 uppercase tracking-widest"
+          >
+            Debug
+          </button>
           <div className="text-sm text-gray-500 hidden md:block">
             Sincronizado con Go High Level
           </div>
@@ -95,7 +108,7 @@ export default async function Home({ searchParams }: { searchParams: { [key: str
       <div className="flex-1 overflow-hidden bg-[url('https://grainy-gradients.vercel.app/noise.svg')] bg-slate-50 relative">
         <div className="absolute inset-0 bg-gradient-to-br from-indigo-50/40 via-white/50 to-blue-50/40 pointer-events-none" />
         <KanbanBoard 
-          key={finalColumns.length} // Force re-render if columns changed
+          key={finalColumns.length + (tasksData?.length || 0)} 
           initialColumns={finalColumns as any} 
           initialTasks={(tasksData || []) as any} 
           role={mockRole}
