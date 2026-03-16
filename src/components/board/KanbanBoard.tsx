@@ -160,7 +160,9 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
-
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const isSyncing = useRef(false);
+  
   // Detail Modal State
   const [detailTask, setDetailTask] = useState<Task | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -195,20 +197,37 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
     const columnTasks = tasks.filter(t => t.column_id === movedTask.column_id);
     const newPosition = columnTasks.findIndex(t => t.id === movedTask.id);
 
+    const prevState = [...tasks];
+    
+    // Optimistic Update is already done by onDragOver/onDragEnd logic, 
+    // but here we handle the persistence failure
     try {
+      setSyncError(null);
       const res = await fetch("/api/tasks", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         cache: "no-store",
         body: JSON.stringify({ id: movedTask.id, column_id: movedTask.column_id, position: newPosition })
       });
-      if (!res.ok) throw new Error("Persistence failed");
+      
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Error al guardar en el servidor");
+      }
       
       const updated = await res.json();
       // Ensure local state matches exactly what API returned
       setTasks(prev => prev.map(t => t.id === updated.id ? updated : t).sort((a,b) => a.position - b.position));
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error saving position:", err);
+      // Revert state if persistence fails
+      setTasks(prevState);
+      setSyncError(err.message || "No se pudo guardar el cambio. Reintentando...");
+      
+      // Auto-hide error after 5s
+      setTimeout(() => setSyncError(null), 5000);
+    } finally {
+      isSyncing.current = false;
     }
   }
 
@@ -262,6 +281,16 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
     <div className="flex flex-col h-full bg-slate-50/50">
       {/* TOOLBAR */}
       <div className="px-8 pb-6 pt-2 flex flex-col md:flex-row gap-4 items-center justify-between">
+        {/* Sync Error Toast */}
+      {syncError && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] bg-red-600/90 text-white px-6 py-3 rounded-full flex items-center gap-3 backdrop-blur-md shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+          <span className="font-medium">{syncError}</span>
+          <button onClick={() => setSyncError(null)} className="hover:opacity-75 p-1 ml-2">✕</button>
+        </div>
+      )}
+
+      {/* Kanban Board Container */}
         {/* View Switcher */}
         <div className="flex bg-white/80 backdrop-blur-sm border border-gray-100 p-1.5 rounded-2xl shadow-sm self-start">
           <button 
