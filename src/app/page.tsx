@@ -17,7 +17,8 @@ const DEFAULT_COLUMNS = [
   { title: "Completado", position: 4 },
 ];
 
-export default async function Home({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined } }) {
+export default async function Home({ searchParams: searchParamsPromise }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
+  const searchParams = await searchParamsPromise;
   const mockRole = (searchParams?.role as "agency" | "client") || "agency"; 
   const isDebug = searchParams?.debug === "true";
   
