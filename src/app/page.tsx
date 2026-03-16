@@ -51,7 +51,10 @@ export default async function Home({ searchParams }: { searchParams: { [key: str
       ),
       labels:task_labels(
         label:labels(*)
-      )
+      ),
+      checklists:task_checklists(*),
+      attachments:task_attachments(*),
+      comments:task_comments(*)
     `)
     .order('position', { ascending: true });
 

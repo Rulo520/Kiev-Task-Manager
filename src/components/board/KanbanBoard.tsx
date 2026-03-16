@@ -71,7 +71,10 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
       .select(`
         *,
         assignees:task_assignees(user:users(id, first_name, last_name, profile_pic)),
-        labels:task_labels(label:labels(*))
+        labels:task_labels(label:labels(*)),
+        checklists:task_checklists(*),
+        attachments:task_attachments(*),
+        comments:task_comments(*)
       `)
       .eq("id", taskId)
       .single();
@@ -95,6 +98,33 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
           }
         } else if (payload.eventType === "DELETE") {
           setTasks((prev) => prev.filter(t => t.id !== payload.old.id));
+        }
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "task_checklists" }, async (payload: any) => {
+        const taskId = payload.new ? payload.new.task_id : payload.old.task_id;
+        if (taskId) {
+          const updatedTask = await fetchTaskDetails(taskId);
+          if (updatedTask) {
+            setTasks(prev => prev.map(t => t.id === taskId ? updatedTask : t));
+          }
+        }
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "task_comments" }, async (payload: any) => {
+        const taskId = payload.new ? payload.new.task_id : payload.old.task_id;
+        if (taskId) {
+          const updatedTask = await fetchTaskDetails(taskId);
+          if (updatedTask) {
+            setTasks(prev => prev.map(t => t.id === taskId ? updatedTask : t));
+          }
+        }
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "task_attachments" }, async (payload: any) => {
+        const taskId = payload.new ? payload.new.task_id : payload.old.task_id;
+        if (taskId) {
+          const updatedTask = await fetchTaskDetails(taskId);
+          if (updatedTask) {
+            setTasks(prev => prev.map(t => t.id === taskId ? updatedTask : t));
+          }
         }
       })
       .subscribe();

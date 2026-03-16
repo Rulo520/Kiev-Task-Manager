@@ -96,7 +96,10 @@ export async function POST(req: Request) {
         ),
         labels:task_labels(
           label:labels(*)
-        )
+        ),
+        checklists:task_checklists(*),
+        attachments:task_attachments(*),
+        comments:task_comments(*)
       `)
       .eq("id", task.id)
       .single();
@@ -150,7 +153,18 @@ export async function PUT(req: Request) {
       .from("tasks")
       .update(updateData)
       .eq("id", id)
-      .select()
+      .select(`
+        *,
+        assignees:task_assignees(
+          user:users(id, first_name, last_name, profile_pic)
+        ),
+        labels:task_labels(
+          label:labels(*)
+        ),
+        checklists:task_checklists(*),
+        attachments:task_attachments(*),
+        comments:task_comments(*)
+      `)
       .single();
 
     if (error) throw error;
