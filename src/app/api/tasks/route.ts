@@ -104,7 +104,12 @@ export async function POST(req: Request) {
       .eq("id", task.id)
       .single();
 
-    return NextResponse.json(fullTask || task, { status: 201 });
+    return NextResponse.json(fullTask || task, { 
+      status: 201,
+      headers: {
+        "Cache-Control": "no-store, max-age=0"
+      }
+    });
 
   } catch (error: unknown) {
     console.error("Task creation error:", error);
@@ -149,10 +154,28 @@ export async function PUT(req: Request) {
     if (priority) updateData.priority = priority;
     if (due_date !== undefined) updateData.due_date = due_date;
 
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from("tasks")
       .update(updateData)
-      .eq("id", id)
+      .eq("id", id);
+
+    if (error) throw error;
+
+    // Handle Label Updates
+    if (labels) {
+      await supabase.from("task_labels").delete().eq("task_id", id);
+      if (labels.length > 0) {
+        const labelRows = labels.map((labelId: string) => ({
+          task_id: id,
+          label_id: labelId
+        }));
+        await supabase.from("task_labels").insert(labelRows);
+      }
+    }
+
+    // Now Fetch the FULL transformed task to return
+    const { data: fullUpdatedTask, error: fetchError } = await supabase
+      .from("tasks")
       .select(`
         *,
         assignees:task_assignees(
@@ -165,23 +188,16 @@ export async function PUT(req: Request) {
         attachments:task_attachments(*),
         comments:task_comments(*)
       `)
+      .eq("id", id)
       .single();
 
-    if (error) throw error;
+    if (fetchError) throw fetchError;
 
-    // Handle Label Updates (Clear and Replace for simplicity in this pass)
-    if (labels) {
-      await supabase.from("task_labels").delete().eq("task_id", id);
-      if (labels.length > 0) {
-        const labelRows = labels.map((labelId: string) => ({
-          task_id: id,
-          label_id: labelId
-        }));
-        await supabase.from("task_labels").insert(labelRows);
+    return NextResponse.json(fullUpdatedTask, {
+      headers: {
+        "Cache-Control": "no-store, max-age=0"
       }
-    }
-
-    return NextResponse.json(data);
+    });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

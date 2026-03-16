@@ -65,66 +65,85 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
   });
 
   // --- REALTIME ---
+  const pendingFetches = useRef<Set<string>>(new Set());
+
   const fetchTaskDetails = useCallback(async (taskId: string) => {
-    const { data, error } = await supabase
-      .from("tasks")
-      .select(`
-        *,
-        assignees:task_assignees(user:users(id, first_name, last_name, profile_pic)),
-        labels:task_labels(label:labels(*)),
-        checklists:task_checklists(*),
-        attachments:task_attachments(*),
-        comments:task_comments(*)
-      `)
-      .eq("id", taskId)
-      .single();
+    if (pendingFetches.current.has(taskId)) return null;
+    pendingFetches.current.add(taskId);
     
-    if (error) return null;
-    return data as unknown as Task;
+    try {
+      const { data, error } = await supabase
+        .from("tasks")
+        .select(`
+          *,
+          assignees:task_assignees(user:users(id, first_name, last_name, profile_pic)),
+          labels:task_labels(label:labels(*)),
+          checklists:task_checklists(*),
+          attachments:task_attachments(*),
+          comments:task_comments(*)
+        `)
+        .eq("id", taskId)
+        .single();
+      
+      if (error) return null;
+      return data as unknown as Task;
+    } finally {
+      // Small delay to prevent rapid-fire redundant fetches
+      setTimeout(() => pendingFetches.current.delete(taskId), 200);
+    }
   }, [supabase]);
 
   useEffect(() => {
     const channel = supabase
-      .channel("tasks-realtime")
+      .channel("kanban-global-sync")
       .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, async (payload) => {
         if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
           const id = (payload.new as { id: string }).id;
           const updatedTask = await fetchTaskDetails(id);
           if (updatedTask) {
             setTasks((prev) => {
-              const filtered = prev.filter(t => t.id !== id);
-              return [...filtered, updatedTask].sort((a, b) => (a.position - b.position) || (a.id > b.id ? 1 : -1));
+              const otherTasks = prev.filter(t => t.id !== id);
+              return [...otherTasks, updatedTask].sort((a, b) => (a.position - b.position) || (a.id > b.id ? 1 : -1));
             });
           }
         } else if (payload.eventType === "DELETE") {
           setTasks((prev) => prev.filter(t => t.id !== payload.old.id));
         }
       })
+      // Grouping all child table events to a single sync logic
       .on("postgres_changes", { event: "*", schema: "public", table: "task_checklists" }, async (payload: any) => {
         const taskId = payload.new ? payload.new.task_id : payload.old.task_id;
         if (taskId) {
           const updatedTask = await fetchTaskDetails(taskId);
-          if (updatedTask) {
-            setTasks(prev => prev.map(t => t.id === taskId ? updatedTask : t));
-          }
+          if (updatedTask) setTasks(prev => prev.map(t => t.id === taskId ? updatedTask : t));
         }
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "task_comments" }, async (payload: any) => {
         const taskId = payload.new ? payload.new.task_id : payload.old.task_id;
         if (taskId) {
           const updatedTask = await fetchTaskDetails(taskId);
-          if (updatedTask) {
-            setTasks(prev => prev.map(t => t.id === taskId ? updatedTask : t));
-          }
+          if (updatedTask) setTasks(prev => prev.map(t => t.id === taskId ? updatedTask : t));
         }
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "task_attachments" }, async (payload: any) => {
         const taskId = payload.new ? payload.new.task_id : payload.old.task_id;
         if (taskId) {
           const updatedTask = await fetchTaskDetails(taskId);
-          if (updatedTask) {
-            setTasks(prev => prev.map(t => t.id === taskId ? updatedTask : t));
-          }
+          if (updatedTask) setTasks(prev => prev.map(t => t.id === taskId ? updatedTask : t));
+        }
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "task_labels" }, async (payload: any) => {
+        const taskId = payload.new ? payload.new.task_id : payload.old.task_id;
+        if (taskId) {
+          const updatedTask = await fetchTaskDetails(taskId);
+          if (updatedTask) setTasks(prev => prev.map(t => t.id === taskId ? updatedTask : t));
+        }
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "task_assignees" }, async (payload: any) => {
+        const taskId = payload.new ? payload.new.task_id : payload.old.task_id;
+        if (taskId) {
+          const updatedTask = await fetchTaskDetails(taskId);
+          if (updatedTask) setTasks(prev => prev.map(t => t.id === taskId ? updatedTask : t));
         }
       })
       .subscribe();
@@ -180,9 +199,14 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
       const res = await fetch("/api/tasks", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
+        cache: "no-store",
         body: JSON.stringify({ id: movedTask.id, column_id: movedTask.column_id, position: newPosition })
       });
       if (!res.ok) throw new Error("Persistence failed");
+      
+      const updated = await res.json();
+      // Ensure local state matches exactly what API returned
+      setTasks(prev => prev.map(t => t.id === updated.id ? updated : t).sort((a,b) => a.position - b.position));
     } catch (err) {
       console.error("Error saving position:", err);
     }
@@ -376,6 +400,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
           const res = await fetch("/api/tasks", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
+            cache: "no-store",
             body: JSON.stringify({ ...data, column_id: activeColumnId })
           });
           if (res.ok) {

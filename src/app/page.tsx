@@ -144,7 +144,7 @@ export default async function Home({ searchParams }: { searchParams: { [key: str
       {/* Board Area */}
       <div className="flex-1 overflow-hidden bg-slate-50 relative">
         <KanbanBoard 
-          key={finalColumns.length + filteredTasks.length + (labelsData?.length || 0) + mockRole} 
+          key={`${mockRole}-${simulatedUserId}`} 
           initialColumns={finalColumns} 
           initialTasks={filteredTasks} 
           role={mockRole}
