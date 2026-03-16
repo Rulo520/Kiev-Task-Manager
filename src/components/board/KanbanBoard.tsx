@@ -205,7 +205,10 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
       setSyncError(null);
       const res = await fetch("/api/tasks", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-test-user": currentUser.id
+        },
         cache: "no-store",
         body: JSON.stringify({ id: movedTask.id, column_id: movedTask.column_id, position: newPosition })
       });
@@ -428,7 +431,10 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
         onSubmit={async (data) => {
           const res = await fetch("/api/tasks", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { 
+              "Content-Type": "application/json",
+              "x-test-user": currentUser.id
+            },
             cache: "no-store",
             body: JSON.stringify({ ...data, column_id: activeColumnId })
           });

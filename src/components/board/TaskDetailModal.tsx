@@ -40,7 +40,9 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
   const fetchTaskDetails = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/tasks/${initialTask.id}`);
+      const res = await fetch(`/api/tasks/${initialTask.id}`, {
+        headers: { "x-test-user": currentUser.id }
+      });
       if (!res.ok) throw new Error("Failed to fetch task details");
       const data = await res.json();
       setTask(data);
@@ -98,7 +100,10 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
     try {
       const res = await fetch(`/api/tasks/${task.id}/checklists`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-test-user": currentUser.id
+        },
         body: JSON.stringify({ title: newChecklistTitle, position: (task.checklists?.length || 0) })
       });
       if (res.ok) {
@@ -112,7 +117,10 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
     try {
       await fetch(`/api/tasks/${task.id}/checklists/${itemId}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-test-user": currentUser.id
+        },
         body: JSON.stringify({ is_completed: !isCompleted })
       });
       // Optimized: update local state immediately
@@ -127,7 +135,10 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
 
   const handleDeleteChecklistItem = async (itemId: string) => {
     try {
-      const res = await fetch(`/api/tasks/${task.id}/checklists/${itemId}`, { method: "DELETE" });
+      const res = await fetch(`/api/tasks/${task.id}/checklists/${itemId}`, { 
+        method: "DELETE",
+        headers: { "x-test-user": currentUser.id }
+      });
       if (res.ok) fetchTaskDetails();
     } catch (err) { console.error(err); }
   };
@@ -138,7 +149,10 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
     try {
       const res = await fetch(`/api/tasks/${task.id}/comments`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-test-user": currentUser.id
+        },
         body: JSON.stringify({ content: newComment, type: activeChat })
       });
       if (res.ok) {
@@ -154,7 +168,10 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
     try {
       const res = await fetch(`/api/tasks/${task.id}/attachments`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-test-user": currentUser.id
+        },
         body: JSON.stringify({ name: newAttachmentName, url: newAttachmentUrl })
       });
       if (res.ok) {
@@ -168,7 +185,10 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
 
   const deleteAttachment = async (id: string) => {
     try {
-      await fetch(`/api/tasks/${task.id}/attachments/${id}`, { method: "DELETE" });
+      await fetch(`/api/tasks/${task.id}/attachments/${id}`, { 
+        method: "DELETE",
+        headers: { "x-test-user": currentUser.id }
+      });
       fetchTaskDetails();
     } catch (err) { console.error(err); }
   };
