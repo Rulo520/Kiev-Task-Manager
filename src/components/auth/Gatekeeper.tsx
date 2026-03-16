@@ -9,6 +9,7 @@ interface GatekeeperProps {
 
 export function Gatekeeper({ debug }: GatekeeperProps) {
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -20,11 +21,11 @@ export function Gatekeeper({ debug }: GatekeeperProps) {
     setError(null);
 
     try {
-      // For this implementation, we simulate a login by checking if the user exists
-      // In a production app, this would be a real OAuth or Password flow
-      const res = await fetch(`/api/ghl/users?email=${encodeURIComponent(email)}`);
+      // Send both email and password for validation
+      const res = await fetch(`/api/ghl/users?email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}`);
       if (!res.ok) {
-        throw new Error("No tienes acceso autorizado a este tablero. Contacta al administrador.");
+        const data = await res.json();
+        throw new Error(data.error || "Credenciales incorrectas. Contacta al administrador.");
       }
       
       const userData = await res.json();
@@ -71,23 +72,43 @@ export function Gatekeeper({ debug }: GatekeeperProps) {
           )}
 
           <form onSubmit={handleSubmit} className="w-full space-y-6">
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">
-                Email de GHL
-              </label>
-              <div className="relative">
-                <div className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300">
-                  <User size={18} />
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">
+                  Email de GHL
+                </label>
+                <div className="relative">
+                  <div className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300">
+                    <User size={18} />
+                  </div>
+                  <input 
+                    type="email" 
+                    placeholder="ejemplo@ghl.com"
+                    className="w-full bg-slate-50 border-none rounded-2xl py-4 pl-12 pr-6 text-sm font-bold text-gray-900 placeholder:text-gray-300 focus:ring-2 focus:ring-indigo-500 transition-all shadow-inner"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
                 </div>
-                <input 
-                  type="email" 
-                  autoFocus
-                  placeholder="ejemplo@ghl.com"
-                  className="w-full bg-slate-50 border-none rounded-2xl py-4 pl-12 pr-6 text-sm font-bold text-gray-900 placeholder:text-gray-300 focus:ring-2 focus:ring-indigo-500 transition-all shadow-inner"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">
+                  Contraseña de Acceso
+                </label>
+                <div className="relative">
+                  <div className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300">
+                    <Lock size={18} />
+                  </div>
+                  <input 
+                    type="password" 
+                    placeholder="••••••••"
+                    className="w-full bg-slate-50 border-none rounded-2xl py-4 pl-12 pr-6 text-sm font-bold text-gray-900 placeholder:text-gray-300 focus:ring-2 focus:ring-indigo-500 transition-all shadow-inner"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                </div>
               </div>
             </div>
 
