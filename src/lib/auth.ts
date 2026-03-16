@@ -18,27 +18,41 @@ export type GHLUser = {
  */
 export async function getAuthUser(req: Request): Promise<GHLUser | null> {
   const url = new URL(req.url);
-  // Example: GHL might pass ?sessionkey=... or we use Cookies via Next.js
-  // For development/mocking, we can pass a test user ID in headers or query params
+  
+  // GHL standard parameters for Custom Menu Links
+  const ghlUserId = url.searchParams.get("user_id") || req.headers.get("x-ghl-user-id");
   const testUserId = url.searchParams.get("testUser") || req.headers.get("x-test-user");
+  const locationId = url.searchParams.get("location_id") || req.headers.get("x-ghl-location-id");
 
-  if (!testUserId) {
-    return null; // Not authenticated
-  }
+  // Identification priority: 1. x-test-user (internal), 2. GHL user_id, 3. Default dev 'Rulo'
+  const targetId = testUserId || ghlUserId;
 
   const supabase = await createClient();
 
-  // Fetch from our Database to enforce roles
-  const { data: user, error } = await supabase
-    .from("users")
-    .select("*")
-    .eq("id", testUserId)
-    .single();
+  if (targetId) {
+    const { data: user, error } = await supabase
+      .from("users")
+      .select("*")
+      .eq("id", targetId)
+      .single();
 
-  if (error || !user) {
-    console.error("Auth Error:", error);
-    return null;
+    if (!error && user) return user as GHLUser;
+    
+    // If it's a GHL ID but not in our DB yet, we could fetch from GHL API or just return a mock 
+    // for this requirement stage. But for Rulo specifically, we'll favor the manual seed.
   }
 
-  return user as GHLUser;
+  // DEFAULT FALLBACK FOR RULO (Development & Quick Testing)
+  // We look for any user with first_name 'Rulo' to avoid 'Fabricio Leiva' takeover
+  const { data: ruloUser } = await supabase
+    .from("users")
+    .select("*")
+    .eq("first_name", "Rulo")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .single();
+
+  if (ruloUser) return ruloUser as GHLUser;
+
+  return null;
 }

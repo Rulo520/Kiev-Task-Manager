@@ -1,6 +1,6 @@
 import { KanbanBoard } from "@/components/board/KanbanBoard";
 import { createClient } from "@supabase/supabase-js";
-import { Column, Task, User } from "@/types/kanban";
+import { Column, Task, User, Role } from "@/types/kanban";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -64,23 +64,39 @@ export default async function Home({ searchParams }: { searchParams: { [key: str
   const { data: labelsData } = await supabase.from('labels').select('*');
 
   // 4. Fetch Users (Agency for assignment)
-  const { data: dbUsers } = await supabase.from('users').select('*').eq('role', 'agency');
+  const { data: dbUsers } = await supabase.from('users').select('*');
 
-  // 5. Client Specific Filtering (Requirement: Client only sees their own tasks)
-  let filteredTasks = (tasksData || []) as unknown as Task[];
-  const simulatedUserId = (searchParams?.userId as string) || (dbUsers && dbUsers[0]?.id);
+  // 5. Advanced Identity Mapping (V3.4)
+  // Priority: 1. userId param, 2. user_id (GHL) param, 3. Find 'Rulo' in DB, 4. First Agency User
+  const requestedUserId = (searchParams?.userId as string) || (searchParams?.user_id as string);
   
-  // simulatedUserId is either from param or the first observer
-  const currentUser = (dbUsers || []).find(u => u.id === simulatedUserId) || {
-    id: simulatedUserId,
-    first_name: mockRole.charAt(0).toUpperCase() + mockRole.slice(1),
-    last_name: "User",
-    role: mockRole,
+  let currentUser = (dbUsers || []).find(u => u.id === requestedUserId || u.ghl_user_id === requestedUserId);
+
+  if (!currentUser) {
+    // Fallback to Rulo
+    currentUser = (dbUsers || []).find(u => u.first_name === "Rulo");
+  }
+
+  if (!currentUser) {
+    // Last resort: Fallback to any agency user
+    currentUser = (dbUsers || []).find(u => u.role === "agency") || dbUsers?.[0];
+  }
+
+  // Ensure we have a default object even if DB is empty
+  const finalUser = currentUser || {
+    id: 'placeholder',
+    first_name: "Rulo",
+    last_name: "Admin",
+    role: "agency",
     profile_pic: null
   } as User;
 
-  if (mockRole === "client" && simulatedUserId) {
-    filteredTasks = filteredTasks.filter(t => t.created_by === simulatedUserId);
+  const currentRole = (searchParams?.role as Role) || (finalUser.role as Role) || "agency";
+
+  // 6. Client Specific Filtering
+  let filteredTasks = (tasksData || []) as unknown as Task[];
+  if (currentRole === "client") {
+    filteredTasks = filteredTasks.filter(t => t.created_by === finalUser.id);
   }
 
   return (
@@ -92,12 +108,12 @@ export default async function Home({ searchParams }: { searchParams: { [key: str
             <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" /> DEBUG MODULE
           </p>
           <div className="space-y-1 opacity-80">
-            <p>Role: <span className="text-white font-bold">{mockRole}</span></p>
+            <p>Role: <span className="text-white font-bold">{currentRole}</span></p>
             <p>Columns: {finalColumns.length}</p>
             <p>Tasks (Filtered): {filteredTasks.length}</p>
             <p>Total Labels: {labelsData?.length || 0}</p>
           </div>
-          <p className="pt-2 text-[8px] opacity-40 break-all">User ID: {simulatedUserId}</p>
+          <p className="pt-2 text-[8px] opacity-40 break-all">User ID: {finalUser.id}</p>
         </div>
       )}
 
@@ -117,13 +133,13 @@ export default async function Home({ searchParams }: { searchParams: { [key: str
           <div className="ml-8 flex gap-2">
             <a 
               href="?role=agency"
-              className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-tighter transition-all ${mockRole === "agency" ? "bg-indigo-600 text-white" : "bg-gray-50 text-gray-400 hover:bg-gray-100"}`}
+              className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-tighter transition-all ${currentRole === "agency" ? "bg-indigo-600 text-white" : "bg-gray-50 text-gray-400 hover:bg-gray-100"}`}
             >
               Mode: Agency
             </a>
             <a 
               href="?role=client"
-              className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-tighter transition-all ${mockRole === "client" ? "bg-indigo-600 text-white" : "bg-gray-50 text-gray-400 hover:bg-gray-100"}`}
+              className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-tighter transition-all ${currentRole === "client" ? "bg-indigo-600 text-white" : "bg-gray-50 text-gray-400 hover:bg-gray-100"}`}
             >
               Mode: Client
             </a>
@@ -132,8 +148,8 @@ export default async function Home({ searchParams }: { searchParams: { [key: str
         
         <div className="flex items-center gap-6">
           <div className="flex flex-col items-end mr-2">
-            <div className="text-[11px] font-black text-gray-900 capitalize">{currentUser.first_name} {currentUser.last_name}</div>
-            <div className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">Connected Live ({mockRole})</div>
+            <div className="text-[11px] font-black text-gray-900 capitalize">{finalUser.first_name} {finalUser.last_name}</div>
+            <div className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">Connected Live ({currentRole})</div>
           </div>
           <div className="h-10 w-10 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-300">
             <UserIcon size={20} />
@@ -144,12 +160,12 @@ export default async function Home({ searchParams }: { searchParams: { [key: str
       {/* Board Area */}
       <div className="flex-1 overflow-hidden bg-slate-50 relative">
         <KanbanBoard 
-          key={`${mockRole}-${simulatedUserId}`} 
+          key={`${currentRole}-${finalUser.id}`} 
           initialColumns={finalColumns} 
           initialTasks={filteredTasks} 
-          role={mockRole}
-          currentUser={currentUser}
-          initialAgencyUsers={(dbUsers || []) as User[]}
+          role={currentRole}
+          currentUser={finalUser}
+          initialAgencyUsers={(dbUsers || []).filter(u => u.role === 'agency') as User[]}
           allLabels={labelsData || []}
         />
       </div>
