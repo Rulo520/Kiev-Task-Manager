@@ -19,6 +19,7 @@ export async function GET(
       .from("tasks")
       .select(`
         *,
+        creator:users!created_by(*),
         assignees:task_assignees(
           user:users(id, first_name, last_name, profile_pic)
         ),

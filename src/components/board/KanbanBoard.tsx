@@ -76,6 +76,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
         .from("tasks")
         .select(`
           *,
+          creator:users!created_by(*),
           assignees:task_assignees(user:users(id, first_name, last_name, profile_pic)),
           labels:task_labels(label:labels(*)),
           checklists:task_checklists(*),

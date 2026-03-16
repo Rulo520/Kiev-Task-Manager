@@ -1,4 +1,5 @@
 import { KanbanBoard } from "@/components/board/KanbanBoard";
+import { Gatekeeper } from "@/components/auth/Gatekeeper";
 import { createClient } from "@supabase/supabase-js";
 import { Column, Task, User, Role } from "@/types/kanban";
 
@@ -46,6 +47,7 @@ export default async function Home({ searchParams }: { searchParams: { [key: str
     .from('tasks')
     .select(`
       *,
+      creator:users!created_by(*),
       assignees:task_assignees(
         user:users(id, first_name, last_name, profile_pic)
       ),
@@ -72,17 +74,21 @@ export default async function Home({ searchParams }: { searchParams: { [key: str
   
   let currentUser = (dbUsers || []).find(u => u.id === requestedUserId || u.ghl_user_id === requestedUserId);
 
-  if (!currentUser) {
-    // Fallback to Rulo
+  // Gatekeeper: If no user found and no debug override, show login
+  const isAuthorized = !!currentUser || isDebug;
+
+  if (!isAuthorized) {
+    return <Gatekeeper onLogin={(id) => {
+      window.location.href = `?user_id=${id}${isDebug ? "&debug=true" : ""}`;
+    }} />;
+  }
+
+  if (!currentUser && isDebug) {
+    // Fallback to Rulo only in debug mode
     currentUser = (dbUsers || []).find(u => u.first_name === "Rulo");
   }
 
-  if (!currentUser) {
-    // Last resort: Fallback to any agency user
-    currentUser = (dbUsers || []).find(u => u.role === "agency") || dbUsers?.[0];
-  }
-
-  // Ensure we have a default object even if DB is empty
+  // Ensure we have a default object for UI safety
   const finalUser = currentUser || {
     id: 'placeholder',
     first_name: "Rulo",

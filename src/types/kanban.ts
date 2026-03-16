@@ -68,6 +68,7 @@ export type Task = {
   checklists?: ChecklistItem[];
   attachments?: Attachment[];
   comments?: Comment[];
+  creator?: User;
   created_at: string;
   updated_at: string;
 };

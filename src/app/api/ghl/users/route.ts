@@ -4,7 +4,6 @@ import { createClient } from "@supabase/supabase-js";
 const GHL_ACCESS_TOKEN = process.env.GHL_ACCESS_TOKEN;
 const GHL_COMPANY_ID = process.env.GHL_COMPANY_ID;
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-// Use SERVICE_ROLE_KEY to bypass RLS for server-side syncing
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 interface GHLUser {
@@ -17,14 +16,10 @@ interface GHLUser {
   profilePhoto?: string;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    if (!GHL_ACCESS_TOKEN || !GHL_COMPANY_ID) {
-      return NextResponse.json(
-        { error: "Faltan variables en Vercel: GHL_ACCESS_TOKEN y GHL_COMPANY_ID son requeridos." },
-        { status: 500 }
-      );
-    }
+    const { searchParams } = new URL(req.url);
+    const emailSearch = searchParams.get("email");
 
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       return NextResponse.json(
@@ -33,13 +28,30 @@ export async function GET() {
       );
     }
 
-    // Initialize a dedicated server-side client that can bypass RLS 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
+      auth: { autoRefreshToken: false, persistSession: false }
     });
+
+    // --- GATEKEEPER MODE: Search by Email ---
+    if (emailSearch) {
+      const { data: userData, error: searchError } = await supabase
+        .from("users")
+        .select("*")
+        .eq("email", emailSearch)
+        .maybeSingle();
+      
+      if (searchError || !userData) {
+        return NextResponse.json({ error: "Usuario no autorizado o no encontrado en Kiev." }, { status: 404 });
+      }
+      return NextResponse.json([userData]);
+    }
+
+    // --- SYNC MODE: GHL to Supabase ---
+    if (!GHL_ACCESS_TOKEN || !GHL_COMPANY_ID) {
+      // If no GHL creds, we still return the existing users for the UI assignment dropdown
+      const { data: existingUsers } = await supabase.from("users").select("*").eq("role", "agency");
+      return NextResponse.json({ users: existingUsers || [] });
+    }
 
     const url = new URL("https://services.leadconnectorhq.com/users/search");
     url.searchParams.append("companyId", GHL_COMPANY_ID);
@@ -62,18 +74,10 @@ export async function GET() {
     const data = await response.json();
     const allUsers = (data.users || []) as GHLUser[];
 
-    if (allUsers.length === 0) {
-      return NextResponse.json(
-        { error: `GHL devolvió 0 usuarios para la compañía ${GHL_COMPANY_ID}.` },
-        { status: 200 }
-      );
-    }
-
-    // Sync phase using the elevated permissions client
-    const upsertPromises = allUsers.map((u: GHLUser) => {
-      const isAgencyUser = u.roles?.type === "agency";
-      return supabase.from("users").upsert(
-        {
+    if (allUsers.length > 0) {
+      const upsertPromises = allUsers.map((u: GHLUser) => {
+        const isAgencyUser = u.roles?.type === "agency";
+        return supabase.from("users").upsert({
           ghl_user_id: u.id,
           email: u.email,
           first_name: u.firstName || u.name?.split(" ")[0] || "",
@@ -81,31 +85,12 @@ export async function GET() {
           role: isAgencyUser ? "agency" : "client",
           profile_pic: u.profilePhoto || null,
           updated_at: new Date().toISOString(),
-        },
-        { onConflict: "ghl_user_id" }
-      );
-    });
-
-    const results = await Promise.all(upsertPromises);
-    const dbErrors = results.filter(r => r.error);
-    
-    if (dbErrors.length > 0) {
-      console.error("Supabase Upsert Error:", dbErrors[0].error);
-      const isRLS = dbErrors[0].error?.message?.includes("row-level security");
-      return NextResponse.json({ 
-        error: isRLS 
-          ? "Permiso denegado en Supabase (RLS). Por favor, agrega la variable 'SUPABASE_SERVICE_ROLE_KEY' en Vercel." 
-          : `Error de base de datos: ${dbErrors[0].error?.message}`
-      }, { status: 500 });
+        }, { onConflict: "ghl_user_id" });
+      });
+      await Promise.all(upsertPromises);
     }
 
-    // Final fetch for the frontend
-    const { data: agencyUsers, error: fetchError } = await supabase
-      .from("users")
-      .select("*")
-      .eq("role", "agency");
-
-    if (fetchError) throw fetchError;
+    const { data: agencyUsers } = await supabase.from("users").select("*").eq("role", "agency");
 
     return NextResponse.json({ 
       users: agencyUsers,
@@ -113,12 +98,8 @@ export async function GET() {
       agency_count: agencyUsers?.length ?? 0
     });
 
-  } catch (error: unknown) {
-    const err = error as Error;
-    console.error("GHL Users Sync Error:", err);
-    return NextResponse.json(
-      { error: err.message || "Failed to sync GHL users." },
-      { status: 500 }
-    );
+  } catch (error: any) {
+    console.error("GHL Users API Error:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

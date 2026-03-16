@@ -121,18 +121,28 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
         </div>
 
         {/* Metadata Footer */}
-        <div className="pt-2 flex items-center justify-between border-t border-gray-50">
-          <div className="flex items-center gap-3 text-gray-400">
-            {task.due_date && (
-              <div className="flex items-center gap-1 text-indigo-500 font-bold">
-                <Calendar size={12} />
-                <span className="text-[10px]">
-                  {format(new Date(task.due_date), "MMM d", { locale: es })}
-                </span>
+        <div className="pt-2 flex flex-col gap-2 border-t border-gray-50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-gray-400">
+              {task.due_date && (
+                <div className="flex items-center gap-1 text-indigo-500 font-bold">
+                  <Calendar size={10} />
+                  <span className="text-[9px]">
+                    {format(new Date(task.due_date), "MMM d", { locale: es })}
+                  </span>
+                </div>
+              )}
+              <div className="text-[8px] font-black uppercase tracking-tighter opacity-40">
+                {format(new Date(task.created_at), "dd/MM/yy HH:mm")}
               </div>
-            )}
-            <div className="text-[9px] font-medium opacity-60">
-              {format(new Date(task.created_at), "dd/MM/yy")}
+            </div>
+            
+            {/* Creator Attribution */}
+            <div className="flex items-center gap-1.5 opacity-60 hover:opacity-100 transition-opacity">
+              <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">Por</span>
+              <span className="text-[9px] font-black text-gray-600 bg-slate-100 px-1.5 py-0.5 rounded-md">
+                {task.creator?.first_name || "Admin"}
+              </span>
             </div>
           </div>
 
