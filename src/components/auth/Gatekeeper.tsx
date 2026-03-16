@@ -4,10 +4,10 @@ import { useState } from "react";
 import { Lock, User, ArrowRight, Loader2, AlertCircle } from "lucide-react";
 
 interface GatekeeperProps {
-  onLogin: (email: string) => void;
+  debug?: boolean;
 }
 
-export function Gatekeeper({ onLogin }: GatekeeperProps) {
+export function Gatekeeper({ debug }: GatekeeperProps) {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,8 +32,8 @@ export function Gatekeeper({ onLogin }: GatekeeperProps) {
         throw new Error("Usuario no encontrado en la cuenta de Kiev.");
       }
 
-      // Success! Pass the user ID back to parent to reload with session
-      onLogin(userData[0].id);
+      // Success! Update URL internally
+      window.location.href = `?user_id=${userData[0].id}${debug ? "&debug=true" : ""}`;
     } catch (err: any) {
       setError(err.message);
     } finally {

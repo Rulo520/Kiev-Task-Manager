@@ -79,9 +79,7 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
   const isAuthorized = !!currentUser || isDebug;
 
   if (!isAuthorized) {
-    return <Gatekeeper onLogin={(id) => {
-      window.location.href = `?user_id=${id}${isDebug ? "&debug=true" : ""}`;
-    }} />;
+    return <Gatekeeper debug={!!isDebug} />;
   }
 
   if (!currentUser && isDebug) {
