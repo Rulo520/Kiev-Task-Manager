@@ -2,6 +2,7 @@ import { KanbanBoard } from "@/components/board/KanbanBoard";
 import { Gatekeeper } from "@/components/auth/Gatekeeper";
 import { createClient } from "@supabase/supabase-js";
 import { Column, Task, User, Role } from "@/types/kanban";
+import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -69,17 +70,35 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
   // 4. Fetch Users (Agency for assignment)
   const { data: dbUsers } = await supabase.from('users').select('*');
 
-  // 5. Advanced Identity Mapping (V3.4)
-  // Priority: 1. userId param, 2. user_id (GHL) param, 3. Find 'Rulo' in DB, 4. First Agency User
-  const requestedUserId = (searchParams?.userId as string) || (searchParams?.user_id as string);
+  // 5. Advanced Identity Mapping (V3.4 + Cookie Session V5.1)
+  const cookieStore = await cookies();
+  const sessionUserId = cookieStore.get("kiev_user_id")?.value;
+  
+  // Priority: 1. userId param, 2. user_id (GHL) param, 3. Cookie Session, 4. Debug/Rulo
+  const requestedUserId = (searchParams?.userId as string) || (searchParams?.user_id as string) || sessionUserId;
   
   let currentUser = (dbUsers || []).find(u => u.id === requestedUserId || u.ghl_user_id === requestedUserId);
+
+  // Auto-Update Session Cookie if we have a valid user from URL
+  if (currentUser && !sessionUserId) {
+    (await cookies()).set("kiev_user_id", currentUser.id, { 
+      path: "/", 
+      maxAge: 60 * 60 * 24 * 7, // 1 week
+      sameSite: "none", // Required for iFrame cookies
+      secure: true 
+    });
+  }
 
   // Gatekeeper: If no user found and no debug override, show login
   const isAuthorized = !!currentUser || isDebug;
 
   if (!isAuthorized) {
-    return <Gatekeeper debug={!!isDebug} />;
+    return (
+      <Gatekeeper 
+        debug={!!isDebug} 
+        isIframe={true} // We hint that we are likely in GHL
+      />
+    );
   }
 
   if (!currentUser && isDebug) {

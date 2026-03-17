@@ -5,9 +5,10 @@ import { Lock, User, ArrowRight, Loader2, AlertCircle } from "lucide-react";
 
 interface GatekeeperProps {
   debug?: boolean;
+  isIframe?: boolean;
 }
 
-export function Gatekeeper({ debug }: GatekeeperProps) {
+export function Gatekeeper({ debug, isIframe }: GatekeeperProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -32,6 +33,9 @@ export function Gatekeeper({ debug }: GatekeeperProps) {
       if (!userData || userData.length === 0) {
         throw new Error("Usuario no encontrado en la cuenta de Kiev.");
       }
+
+      // 5.1 Persistence: Set Cookie for future sessions (Required for iFrames)
+      document.cookie = `kiev_user_id=${userData[0].id}; path=/; max-age=${60 * 60 * 24 * 7}; samesite=none; secure`;
 
       // Success! Update URL internally
       window.location.href = `?user_id=${userData[0].id}${debug ? "&debug=true" : ""}`;
@@ -64,8 +68,20 @@ export function Gatekeeper({ debug }: GatekeeperProps) {
             </p>
           </div>
 
+          {isIframe && (
+            <div className="bg-amber-50/50 border border-amber-200/50 rounded-2xl p-4 flex gap-3 mb-6">
+              <div className="text-amber-500 shrink-0">
+                <AlertCircle size={20} />
+              </div>
+              <div className="text-[11px] leading-relaxed text-amber-800">
+                <p className="font-bold mb-1">💡 Tip para Usuarios GHL</p>
+                <p className="opacity-80">Si estás en el iFrame de GHL y ves esta pantalla, asegúrate de activar la opción <span className="font-bold">"Pass contact/user info as query params"</span> en la configuración del link de GHL para entrar automáticamente.</p>
+              </div>
+            </div>
+          )}
+
           {error && (
-            <div className="w-full bg-rose-50 border border-rose-100 rounded-2xl p-4 flex gap-3 text-rose-600 text-xs font-bold mb-8 animate-in shake duration-300">
+            <div className="bg-red-50/50 border border-red-200/50 rounded-2xl p-4 flex gap-3 animate-shake mb-6 text-xs font-bold">
               <AlertCircle size={16} className="shrink-0" />
               <p>{error}</p>
             </div>
