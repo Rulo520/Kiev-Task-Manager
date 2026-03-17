@@ -70,11 +70,11 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
   // 4. Fetch Users (Agency for assignment)
   const { data: dbUsers } = await supabase.from('users').select('*');
 
-  // 5. Advanced Identity Mapping (V3.4 + Cookie Session V5.1)
+  // 5.ward Identity Mapping (V3.4 + Cookie Session V5.1)
   const cookieStore = await cookies();
   const sessionUserId = cookieStore.get("kiev_user_id")?.value;
   
-  // Priority: 1. userId param, 2. user_id (GHL) param, 3. Cookie Session, 4. Debug/Rulo
+  // Priority: 1. userId param, 2. user_id (Kiev) param, 3. Cookie Session, 4. Debug/Rulo
   const requestedUserId = (searchParams?.userId as string) || (searchParams?.user_id as string) || sessionUserId;
   
   let currentUser = (dbUsers || []).find(u => u.id === requestedUserId || u.ghl_user_id === requestedUserId);
@@ -96,7 +96,7 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
     return (
       <Gatekeeper 
         debug={!!isDebug} 
-        isIframe={true} // We hint that we are likely in GHL
+        isIframe={true} // We hint that we are likely in the Kiev Platform context
       />
     );
   }
@@ -149,7 +149,7 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
           </div>
           <div className="flex flex-col">
             <h1 className="text-lg font-black text-gray-900 tracking-tight leading-none">
-              GHL KIEV <span className="text-indigo-600">PRO</span>
+              KIEV PLATFORM <span className="text-indigo-600">PRO</span>
             </h1>
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Management Console</span>
           </div>

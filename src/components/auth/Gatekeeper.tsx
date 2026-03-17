@@ -12,7 +12,7 @@ export function Gatekeeper({ debug, isIframe }: GatekeeperProps) {
   const [isDetecting, setIsDetecting] = useState(true);
   const [isDenied, setIsDenied] = useState(false);
 
-  // 5.4 Strict Enforcement: GHL-Native Identity Probe
+  // 5.5 Strict Enforcement & Branding: Kiev Platform Probe
   useEffect(() => {
     const timer = setTimeout(() => {
       // If no valid identity found in 2.5 seconds, we show the blocked screen
@@ -22,9 +22,10 @@ export function Gatekeeper({ debug, isIframe }: GatekeeperProps) {
       }
     }, 2500);
 
-    // Standard GHL handshake via postMessage if SDK is loaded
+    // Standard Handshake via postMessage
     if (typeof window !== "undefined") {
       const handleHandshake = (event: MessageEvent) => {
+        // We still check for "ghl-user-info" as it is the technical protocol
         if (event.data?.type === "ghl-user-info" && event.data?.id) {
           window.location.href = `?user_id=${event.data.id}${debug ? "&debug=true" : ""}`;
         }
@@ -46,7 +47,7 @@ export function Gatekeeper({ debug, isIframe }: GatekeeperProps) {
       <div className="absolute top-0 -left-20 w-80 h-80 bg-indigo-200 rounded-full blur-[120px] opacity-40 animate-pulse" />
       <div className="absolute bottom-0 -right-20 w-80 h-80 bg-purple-200 rounded-full blur-[120px] opacity-40 animate-pulse" />
 
-      {/* GHL SDK Loader */}
+      {/* Platform SDK Loader */}
       <script src="https://widgets.leadconnectorhq.com/loader.js" async />
 
       <div className="w-full max-w-lg z-10">
@@ -58,10 +59,10 @@ export function Gatekeeper({ debug, isIframe }: GatekeeperProps) {
 
           <div className="text-center mb-10">
             <h1 className="text-3xl font-black text-gray-900 tracking-tight mb-2 uppercase">
-              {isDetecting ? "Detectando" : "Acceso"} <span className="text-indigo-600 font-black">{isDetecting ? "GHL..." : "Denegado"}</span>
+              {isDetecting ? "Detectando" : "Acceso"} <span className="text-indigo-600 font-black">{isDetecting ? "Plataforma..." : "Denegado"}</span>
             </h1>
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">
-              Kiev Intelligence Protocol • V5.4
+              Kiev Intelligence Protocol • V5.5
             </p>
           </div>
 
@@ -71,7 +72,7 @@ export function Gatekeeper({ debug, isIframe }: GatekeeperProps) {
                 <div className="absolute inset-0 bg-indigo-100 rounded-full blur-xl animate-pulse" />
                 <Loader2 size={48} className="text-indigo-600 animate-spin relative" />
               </div>
-              <p className="text-sm font-black text-slate-500 animate-pulse tracking-tight">Verificando sesión activa de HighLevel...</p>
+              <p className="text-sm font-black text-slate-500 animate-pulse tracking-tight">Verificando sesión en Kiev Platform...</p>
             </div>
           )}
 
@@ -81,23 +82,12 @@ export function Gatekeeper({ debug, isIframe }: GatekeeperProps) {
                 <div className="w-16 h-16 bg-rose-50 rounded-2xl flex items-center justify-center text-rose-500 mb-6 mx-auto">
                   <AlertCircle size={32} />
                 </div>
-                <p className="text-lg font-black text-gray-900 leading-tight mb-4">
+                <p className="text-lg font-black text-gray-900 leading-tight mb-2">
                   Este tablero es exclusivo del equipo de trabajo de <span className="text-indigo-600 italic">Kiev Agency</span>
                 </p>
-                
-                <div className="p-5 bg-white rounded-3xl border border-rose-100/50 text-left shadow-sm">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-                    <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Guía de Resolución</p>
-                  </div>
-                  <p className="text-xs leading-relaxed text-slate-500 font-bold">
-                    Si estás dentro de GHL y ves este mensaje, pide al Administrador que habilite la opción:
-                    <span className="block mt-2 p-2 bg-slate-50 rounded-lg text-slate-900 font-black text-[10px] border border-slate-100">
-                      "Pass contact/user info as query params"
-                    </span>
-                    en la configuración del enlace.
-                  </p>
-                </div>
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest opacity-60">
+                  Identidad no reconocida
+                </p>
               </div>
 
               <button 
@@ -109,7 +99,7 @@ export function Gatekeeper({ debug, isIframe }: GatekeeperProps) {
               </button>
 
               <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest mt-2">
-                Identidad strictly enforced via GHL Context
+                Identidad strictly enforced via Kiev Platform
               </p>
             </div>
           )}
