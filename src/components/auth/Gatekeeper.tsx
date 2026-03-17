@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Lock, User, ArrowRight, Loader2, AlertCircle } from "lucide-react";
 
 interface GatekeeperProps {
@@ -10,9 +10,29 @@ interface GatekeeperProps {
 
 export function Gatekeeper({ debug, isIframe }: GatekeeperProps) {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [isDetecting, setIsDetecting] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 5.2 Intelligent GHL Probe
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      // If we don't find identity in 2 seconds, we show the fallback form
+      setIsDetecting(false);
+    }, 2000);
+
+    // Try to detect GHL Native Identity (Marketplace/Custom App SDK)
+    if (typeof window !== "undefined") {
+      // Standard GHL handshake via postMessage if SDK is loaded
+      window.addEventListener("message", (event) => {
+        if (event.data?.type === "ghl-user-info" && event.data?.id) {
+          window.location.href = `?user_id=${event.data.id}${debug ? "&debug=true" : ""}`;
+        }
+      });
+    }
+
+    return () => clearTimeout(timer);
+  }, [debug]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,11 +42,11 @@ export function Gatekeeper({ debug, isIframe }: GatekeeperProps) {
     setError(null);
 
     try {
-      // Send both email and password for validation
-      const res = await fetch(`/api/ghl/users?email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}`);
+      // Search by email only (User hates passwords)
+      const res = await fetch(`/api/ghl/users?email=${encodeURIComponent(email)}`);
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Credenciales incorrectas. Contacta al administrador.");
+        throw new Error(data.error || "No tienes acceso autorizado. Contacta al administrador.");
       }
       
       const userData = await res.json();
@@ -52,6 +72,9 @@ export function Gatekeeper({ debug, isIframe }: GatekeeperProps) {
       <div className="absolute top-0 -left-20 w-80 h-80 bg-indigo-200 rounded-full blur-[120px] opacity-40 animate-pulse" />
       <div className="absolute bottom-0 -right-20 w-80 h-80 bg-purple-200 rounded-full blur-[120px] opacity-40 animate-pulse" />
 
+      {/* GHL SDK Loader */}
+      <script src="https://widgets.leadconnectorhq.com/loader.js" async />
+
       <div className="w-full max-w-md z-10">
         <div className="bg-white rounded-[40px] shadow-2xl shadow-indigo-100 border border-white p-10 flex flex-col items-center">
           {/* Logo/Icon */}
@@ -61,14 +84,23 @@ export function Gatekeeper({ debug, isIframe }: GatekeeperProps) {
 
           <div className="text-center mb-10">
             <h1 className="text-3xl font-black text-gray-900 tracking-tight mb-2">
-              Acceso <span className="text-indigo-600">Restringido</span>
+              {isDetecting ? "Detectando" : "Identidad"} <span className="text-indigo-600 font-black">{isDetecting ? "GHL..." : "Requerida"}</span>
             </h1>
-            <p className="text-sm font-medium text-gray-400 uppercase tracking-widest">
-              GHL Kiev Pro Management
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
+              Kiev Intelligence Protocol
             </p>
           </div>
 
-          {isIframe && (
+          {isDetecting && (
+            <div className="flex flex-col items-center gap-4 py-8">
+              <Loader2 size={40} className="text-indigo-600 animate-spin" />
+              <p className="text-xs font-bold text-gray-500 animate-pulse">Consultando sesión de HighLevel...</p>
+            </div>
+          )}
+
+          {!isDetecting && (
+            <>
+              {isIframe && (
             <div className="bg-amber-50/50 border border-amber-200/50 rounded-2xl p-4 flex gap-3 mb-6">
               <div className="text-amber-500 shrink-0">
                 <AlertCircle size={20} />
@@ -91,7 +123,7 @@ export function Gatekeeper({ debug, isIframe }: GatekeeperProps) {
             <div className="space-y-4">
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">
-                  Email de GHL
+                  Confirmar Email de Sesión
                 </label>
                 <div className="relative">
                   <div className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300">
@@ -107,25 +139,6 @@ export function Gatekeeper({ debug, isIframe }: GatekeeperProps) {
                   />
                 </div>
               </div>
-
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">
-                  Contraseña de Acceso
-                </label>
-                <div className="relative">
-                  <div className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300">
-                    <Lock size={18} />
-                  </div>
-                  <input 
-                    type="password" 
-                    placeholder="••••••••"
-                    className="w-full bg-slate-50 border-none rounded-2xl py-4 pl-12 pr-6 text-sm font-bold text-gray-900 placeholder:text-gray-300 focus:ring-2 focus:ring-indigo-500 transition-all shadow-inner"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
             </div>
 
             <button 
@@ -137,7 +150,7 @@ export function Gatekeeper({ debug, isIframe }: GatekeeperProps) {
                 <Loader2 size={20} className="animate-spin" />
               ) : (
                 <>
-                  Entrar al Tablero
+                  Vincular Perfil GHL
                   <ArrowRight size={18} />
                 </>
               )}
@@ -145,9 +158,11 @@ export function Gatekeeper({ debug, isIframe }: GatekeeperProps) {
           </form>
 
           <p className="mt-8 text-[10px] text-gray-400 font-bold uppercase tracking-tighter text-center">
-            Este tablero requiere permisos de cuenta principal.<br/>
-            Si no tienes acceso, consulta con el Administrador de Kiev.
+            Este tablero solo es accesible mediante una sesión activa de GHL.<br/>
+            Identifícate una vez para vincular tu acceso de forma permanente.
           </p>
+          </>
+          )}
         </div>
       </div>
     </div>

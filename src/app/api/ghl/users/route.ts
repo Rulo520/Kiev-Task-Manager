@@ -32,9 +32,8 @@ export async function GET(req: Request) {
       auth: { autoRefreshToken: false, persistSession: false }
     });
 
-    // --- GATEKEEPER MODE: Search by Email + Password ---
+    // --- GATEKEEPER MODE: Search by Email ---
     if (emailSearch) {
-      const passwordSearch = searchParams.get("password");
       const { data: userData, error: searchError } = await supabase
         .from("users")
         .select("*")
@@ -42,12 +41,7 @@ export async function GET(req: Request) {
         .maybeSingle();
       
       if (searchError || !userData) {
-        return NextResponse.json({ error: "Email no encontrado." }, { status: 404 });
-      }
-
-      // Hardened password check
-      if (userData.password !== passwordSearch) {
-        return NextResponse.json({ error: "Contraseña incorrecta." }, { status: 401 });
+        return NextResponse.json({ error: "Email no encontrado o no autorizado en Kiev." }, { status: 404 });
       }
 
       return NextResponse.json([userData]);
