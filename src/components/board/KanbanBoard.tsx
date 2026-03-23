@@ -173,6 +173,24 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
     setIsDetailOpen(true);
   };
 
+  const deleteTask = async (taskId: string) => {
+    if (!confirm("¿Estás seguro de que deseas eliminar este requerimiento?")) return;
+
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: "DELETE",
+        headers: { "x-test-user": currentUser.id }
+      });
+
+      if (!res.ok) throw new Error("No se pudo eliminar la tarea");
+      
+      setTasks(prev => prev.filter(t => t.id !== taskId));
+    } catch (err: any) {
+      setSyncError(err.message || "Error al eliminar la tarea");
+      setTimeout(() => setSyncError(null), 5000);
+    }
+  };
+
   function onDragStart(event: DragStartEvent) {
     if (event.active.data.current?.type === "Task") {
       setActiveTask(event.active.data.current.task);
@@ -403,6 +421,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
                     tasks={filteredTasks.filter((task) => task.column_id === col.id)}
                     onAddTask={(cid) => { setActiveColumnId(cid); setIsModalOpen(true); }}
                     onTaskClick={openTaskDetail}
+                    onDeleteTask={deleteTask}
                   />
                 ))}
               </div>
@@ -415,7 +434,12 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
 
         {view === "list" && (
           <div className="h-full overflow-y-auto custom-scrollbar pb-10">
-            <ListView tasks={filteredTasks} columns={columns} />
+            <ListView 
+              tasks={filteredTasks} 
+              columns={columns} 
+              onTaskClick={openTaskDetail}
+              onDeleteTask={deleteTask}
+            />
           </div>
         )}
 

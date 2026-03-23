@@ -20,124 +20,110 @@ const DEFAULT_COLUMNS = [
 
 export default async function Home({ searchParams: searchParamsPromise }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const searchParams = await searchParamsPromise;
-  const mockRole = (searchParams?.role as "agency" | "client") || "agency"; 
   const isDebug = searchParams?.debug === "true";
   
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false }
   });
 
-  // 1. Fetch Columns
-  const { data: columnsData, error: colError } = await supabase
-    .from('columns')
-    .select('*')
-    .order('position', { ascending: true });
+  // 1. Database Primes (Always same)
+  const [{ data: columnsData }, { data: dbUsers }, { data: tasksData }, { data: labelsData }] = await Promise.all([
+    supabase.from('columns').select('*').order('position', { ascending: true }),
+    supabase.from('users').select('*'),
+    supabase.from('tasks').select(`*, creator:users!created_by(*), assignees:task_assignees(user:users(id, first_name, last_name, profile_pic)), labels:task_labels(label:labels(*)), checklists:task_checklists(*), attachments:task_attachments(*), comments:task_comments(*)`).order('position', { ascending: true }),
+    supabase.from('labels').select('*')
+  ]);
 
-  if (colError) console.error("Column fetch error:", colError);
   let finalColumns = (columnsData || []) as Column[];
-
   if (finalColumns.length === 0) {
-    const { data: seededColumns } = await supabase
-      .from('columns')
-      .insert(DEFAULT_COLUMNS)
-      .select();
-    if (seededColumns) finalColumns = seededColumns as Column[];
+    const { data: seeded } = await supabase.from('columns').insert(DEFAULT_COLUMNS).select();
+    if (seeded) finalColumns = seeded as Column[];
   }
 
-  // 2. Fetch Tasks
-  const { data: tasksData, error: taskError } = await supabase
-    .from('tasks')
-    .select(`
-      *,
-      creator:users!created_by(*),
-      assignees:task_assignees(
-        user:users(id, first_name, last_name, profile_pic)
-      ),
-      labels:task_labels(
-        label:labels(*)
-      ),
-      checklists:task_checklists(*),
-      attachments:task_attachments(*),
-      comments:task_comments(*)
-    `)
-    .order('position', { ascending: true });
-
-  if (taskError) console.error("Task fetch error:", taskError);
-
-  // 3. Fetch Labels
-  const { data: labelsData } = await supabase.from('labels').select('*');
-
-  // 4. Fetch Users (Agency for assignment)
-  const { data: dbUsers } = await supabase.from('users').select('*');
-
-  // 5.ward Identity Mapping (V3.4 + Cookie Session V5.1)
+  // 2. IDENTITY RESOLUTION (V7.0 Braced)
   const cookieStore = await cookies();
   const sessionUserId = cookieStore.get("kiev_user_id")?.value;
   
-  // Priority: 1. userId param, 2. user_id (Kiev) param, 3. Cookie Session, 4. Debug/Rulo
-  const requestedUserId = (searchParams?.userId as string) || (searchParams?.user_id as string) || sessionUserId;
-  
-  let currentUser = (dbUsers || []).find(u => u.id === requestedUserId || u.ghl_user_id === requestedUserId);
+  // Standard GHL identities sent via URL (Custom menu links use these casings)
+  const ghlIdentity = (
+    (searchParams?.userId as string) || 
+    (searchParams?.user_id as string) || 
+    (searchParams?.contactId as string) ||
+    (searchParams?.contact_id as string)
+  );
 
-  // Auto-Update Session Cookie if we have a valid user from URL
-  if (currentUser && !sessionUserId) {
+  // V7.0 Rule: IF we have a GHL Identity in the URL, it MUST override the session cookie (prevents zombie sessions)
+  const requestedUserId = ghlIdentity || sessionUserId;
+  
+  let currentUser = (dbUsers || []).find(u => 
+    u.id === requestedUserId || 
+    u.ghl_user_id === requestedUserId || 
+    u.email === requestedUserId
+  );
+
+  // If a valid identity is found from URL, update/refresh the session cookie
+  if (currentUser && ghlIdentity) {
     (await cookies()).set("kiev_user_id", currentUser.id, { 
       path: "/", 
-      maxAge: 60 * 60 * 24 * 7, // 1 week
-      sameSite: "none", // Required for iFrame cookies
+      maxAge: 60 * 60, // Reduced to 1 hour for security
+      sameSite: "none", // Critical for iFrame access
       secure: true 
     });
   }
 
-  // Gatekeeper: If no user found and no debug override, show login
+  // Gatekeeper: Only authorize if user exists OR debug is active
   const isAuthorized = !!currentUser || isDebug;
 
   if (!isAuthorized) {
     return (
       <Gatekeeper 
         debug={!!isDebug} 
-        isIframe={true} // We hint that we are likely in the Kiev Platform context
+        isIframe={true} 
       />
     );
   }
 
+  // V7.0 Safety: If isDebug but no user found, we strictly DONT fallback to Rulo unless explicitly told (Admin safety)
   if (!currentUser && isDebug) {
-    // Fallback to Rulo only in debug mode
     currentUser = (dbUsers || []).find(u => u.first_name === "Rulo");
   }
 
-  // Ensure we have a default object for UI safety
   const finalUser = currentUser || {
     id: 'placeholder',
-    first_name: "Rulo",
-    last_name: "Admin",
-    role: "agency",
+    first_name: "Visitante",
+    last_name: "Kiev",
+    role: "client",
     profile_pic: null
   } as User;
 
   const currentRole = (searchParams?.role as Role) || (finalUser.role as Role) || "agency";
 
-  // 6. Client Specific Filtering
+  // 3. User Experience Filtering
   let filteredTasks = (tasksData || []) as unknown as Task[];
   if (currentRole === "client") {
-    filteredTasks = filteredTasks.filter(t => t.created_by === finalUser.id);
+    filteredTasks = filteredTasks.filter(t => t.created_by === finalUser.id || t.assignees.some((a: any) => a.user.id === finalUser.id));
   }
 
   return (
     <main className="flex flex-col h-screen w-full relative">
-      {/* Debug Overlay */}
+      {/* Cache Buster V7.1 */}
+      <head>
+        <meta httpEquiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+        <meta httpEquiv="Pragma" content="no-cache" />
+        <meta httpEquiv="Expires" content="0" />
+      </head>
+      
       {isDebug && (
-        <div className="absolute top-2 left-2 z-[9999] bg-slate-900/90 backdrop-blur-md text-white p-6 rounded-2xl font-mono text-[10px] shadow-2xl border border-white/10 max-w-xs space-y-2">
+        <div className="absolute top-2 left-2 z-[9999] bg-slate-900/90 backdrop-blur-md text-white p-6 rounded-2xl font-mono text-[10px] shadow-2xl border border-white/10 max-w-xs space-y-2 animate-in fade-in slide-in-from-top-4 duration-500">
           <p className="font-black text-indigo-400 text-sm mb-2 uppercase tracking-widest flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" /> DEBUG MODULE
           </p>
           <div className="space-y-1 opacity-80">
-            <p>Role: <span className="text-white font-bold">{currentRole}</span></p>
-            <p>Columns: {finalColumns.length}</p>
-            <p>Tasks (Filtered): {filteredTasks.length}</p>
-            <p>Total Labels: {labelsData?.length || 0}</p>
+            <p>User: <span className="text-white font-bold">{finalUser.first_name}</span></p>
+            <p>Identity: {requestedUserId || "None"}</p>
+            <p>Role: <span className="text-indigo-400 font-bold">{currentRole}</span></p>
+            <p>Tasks: {filteredTasks.length}</p>
           </div>
-          <p className="pt-2 text-[8px] opacity-40 break-all">User ID: {finalUser.id}</p>
         </div>
       )}
 
@@ -148,35 +134,48 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
             K
           </div>
           <div className="flex flex-col">
-            <h1 className="text-lg font-black text-gray-900 tracking-tight leading-none">
-              KIEV PLATFORM <span className="text-indigo-600">PRO</span>
+            <h1 className="text-lg font-black text-gray-900 tracking-tight leading-none uppercase">
+              Kiev Platform <span className="text-indigo-600">Pro</span>
             </h1>
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Management Console</span>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] opacity-60">Intelligence Console</span>
+              <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-400 text-[8px] font-black border border-slate-200/50">V7.1</span>
+            </div>
           </div>
           
-          <div className="ml-8 flex gap-2">
+          <div className="ml-10 flex gap-2 p-1 bg-slate-50 rounded-xl border border-slate-100">
             <a 
               href="?role=agency"
-              className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-tighter transition-all ${currentRole === "agency" ? "bg-indigo-600 text-white" : "bg-gray-50 text-gray-400 hover:bg-gray-100"}`}
+              className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${currentRole === "agency" ? "bg-white text-indigo-600 shadow-sm border border-slate-100" : "text-gray-400 hover:text-gray-600"}`}
             >
-              Mode: Agency
+              Agencia
             </a>
             <a 
               href="?role=client"
-              className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-tighter transition-all ${currentRole === "client" ? "bg-indigo-600 text-white" : "bg-gray-50 text-gray-400 hover:bg-gray-100"}`}
+              className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${currentRole === "client" ? "bg-white text-indigo-600 shadow-sm border border-slate-100" : "text-gray-400 hover:text-gray-600"}`}
             >
-              Mode: Client
+              Cliente
             </a>
           </div>
         </div>
         
         <div className="flex items-center gap-6">
-          <div className="flex flex-col items-end mr-2">
-            <div className="text-[11px] font-black text-gray-900 capitalize">{finalUser.first_name} {finalUser.last_name}</div>
-            <div className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">Connected Live ({currentRole})</div>
+          <div className="flex flex-col items-end">
+            <div className="text-[12px] font-black text-gray-900 uppercase tracking-tighter">{finalUser.first_name} {finalUser.last_name}</div>
+            <div className="flex items-center gap-1.5">
+               <span className="relative flex h-2 w-2">
+                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+               </span>
+               <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{currentRole} • Kiev ID-{finalUser.id.slice(0,4)}</span>
+            </div>
           </div>
-          <div className="h-10 w-10 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-300">
-            <UserIcon size={20} />
+          <div className="h-11 w-11 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden shadow-inner group">
+             {finalUser.profile_pic ? (
+               <img src={finalUser.profile_pic} alt="" className="object-cover h-full w-full" />
+             ) : (
+               <div className="text-indigo-600 font-black text-sm group-hover:scale-110 transition-transform">{finalUser.first_name[0]}{finalUser.last_name[0]}</div>
+             )}
           </div>
         </div>
       </header>
@@ -196,5 +195,3 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
     </main>
   );
 }
-
-import { User as UserIcon } from "lucide-react";
