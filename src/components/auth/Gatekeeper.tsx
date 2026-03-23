@@ -72,7 +72,7 @@ export function Gatekeeper({ debug, isIframe }: GatekeeperProps) {
               {isDetecting ? "Detectando" : "Acceso"} <span className="text-indigo-600 font-black">{isDetecting ? "Plataforma..." : "Denegado"}</span>
             </h1>
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] opacity-60">
-              Kiev Intelligence Protocol • V7.1
+              Kiev Intelligence Protocol • V7.2
             </p>
           </div>
 
@@ -97,18 +97,25 @@ export function Gatekeeper({ debug, isIframe }: GatekeeperProps) {
                 </p>
                 
                 <div className="mt-6 space-y-4 px-2">
+                   {!isIframe && (
+                     <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 text-left">
+                       <p className="text-[11px] font-black text-amber-900 uppercase tracking-widest mb-1 flex items-center gap-2">
+                         <RefreshCw size={12} strokeWidth={3} /> Acción Requerida
+                       </p>
+                       <p className="text-[11px] text-amber-700 font-medium leading-relaxed">
+                         Para usar esta ventana independiente, vuelve a **Kiev Platform (GHL)** y haz clic en el botón <span className="font-bold text-amber-900 uppercase">"Abrir en Nueva Pestaña"</span> dentro del tablero. Esto sincronizará tu acceso.
+                       </p>
+                     </div>
+                   )}
+                   
                    <div className="p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100 text-left">
                      <p className="text-[11px] font-black text-indigo-900 uppercase tracking-widest mb-1 flex items-center gap-2">
-                       <ExternalLink size={12} strokeWidth={3} /> Tip: Nueva Pestaña
+                       <ExternalLink size={12} strokeWidth={3} /> Tip de Privacidad
                      </p>
                      <p className="text-[11px] text-indigo-700 font-medium leading-relaxed">
-                       Si abriste el tablero en una pestaña nueva, por favor **ábrelo primero desde GHL** para sincronizar tu acceso.
+                       Los navegadores modernos bloquean sesiones automáticas en iFrames por seguridad. La sincronización manual es necesaria la primera vez.
                      </p>
                    </div>
-                   
-                   <p className="text-[10px] text-slate-400 font-medium">
-                     Este tablero es exclusivo para el equipo de <span className="text-indigo-600 font-black">Kiev Agency</span> con sesión activa en la plataforma.
-                   </p>
                 </div>
               </div>
 
@@ -117,7 +124,7 @@ export function Gatekeeper({ debug, isIframe }: GatekeeperProps) {
                   onClick={() => window.location.reload()}
                   className="group w-full bg-slate-900 hover:bg-slate-800 text-white py-4 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all shadow-xl active:scale-95"
                 >
-                  Continuar
+                  Re-intentar Conexión
                   <ArrowRight size={18} />
                 </button>
                 
@@ -126,16 +133,16 @@ export function Gatekeeper({ debug, isIframe }: GatekeeperProps) {
                   className="group w-full bg-white border border-slate-200 hover:border-indigo-400 text-slate-500 hover:text-indigo-600 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-3 transition-all active:scale-95"
                 >
                   <RefreshCw size={14} className="group-hover:rotate-180 transition-transform duration-500" />
-                  Forzar Actualización (Cache)
+                  Limpiar Cache
                 </button>
               </div>
 
               <div className="flex flex-col items-center gap-1 opacity-30 mt-4">
                 <p className="text-[8px] text-gray-400 font-black uppercase tracking-[0.2em]">
-                  Kiev Safety Protocol V7.1
+                  Kiev Safety Protocol V7.2
                 </p>
                 <p className="text-[7px] text-gray-300 font-bold uppercase">
-                  Cross-Tab Auth Protection Active
+                  Cross-Domain Sandbox Bridge
                 </p>
               </div>
             </div>

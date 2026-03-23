@@ -3,6 +3,7 @@ import { Gatekeeper } from "@/components/auth/Gatekeeper";
 import { createClient } from "@supabase/supabase-js";
 import { Column, Task, User, Role } from "@/types/kanban";
 import { cookies } from "next/headers";
+import { ExternalLink } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -157,6 +158,17 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
               Cliente
             </a>
           </div>
+
+          <a 
+            href={`?user_id=${finalUser.id}${isDebug ? "&debug=true" : ""}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-4 flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl border border-indigo-100 transition-all text-[9px] font-black uppercase tracking-widest group shadow-sm hover:shadow-md"
+            title="Sincronizar sesión en una pestaña nueva"
+          >
+            <ExternalLink size={12} className="group-hover:scale-110 transition-transform" />
+            Abrir en Nueva Pestaña
+          </a>
         </div>
         
         <div className="flex items-center gap-6">
