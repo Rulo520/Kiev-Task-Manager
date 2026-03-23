@@ -4,9 +4,11 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
-  title: "GHL Kanban Board",
-  description: "Modern Kanban task manager for Agency and Clients",
+  title: "Kiev Platform Pro",
+  description: "Intelligence Console",
 };
+
+export const revalidate = 0;
 
 export default function RootLayout({
   children,

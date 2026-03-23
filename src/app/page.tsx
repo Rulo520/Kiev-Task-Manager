@@ -62,16 +62,6 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
     u.email === requestedUserId
   );
 
-  // If a valid identity is found from URL, update/refresh the session cookie
-  if (currentUser && ghlIdentity) {
-    (await cookies()).set("kiev_user_id", currentUser.id, { 
-      path: "/", 
-      maxAge: 60 * 60, // Reduced to 1 hour for security
-      sameSite: "none", // Critical for iFrame access
-      secure: true 
-    });
-  }
-
   // Gatekeeper: Only authorize if user exists OR debug is active
   const isAuthorized = !!currentUser || isDebug;
 
@@ -107,13 +97,6 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
 
   return (
     <main className="flex flex-col h-screen w-full relative">
-      {/* Cache Buster V7.1 */}
-      <head>
-        <meta httpEquiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-        <meta httpEquiv="Pragma" content="no-cache" />
-        <meta httpEquiv="Expires" content="0" />
-      </head>
-      
       {isDebug && (
         <div className="absolute top-2 left-2 z-[9999] bg-slate-900/90 backdrop-blur-md text-white p-6 rounded-2xl font-mono text-[10px] shadow-2xl border border-white/10 max-w-xs space-y-2 animate-in fade-in slide-in-from-top-4 duration-500">
           <p className="font-black text-indigo-400 text-sm mb-2 uppercase tracking-widest flex items-center gap-2">
