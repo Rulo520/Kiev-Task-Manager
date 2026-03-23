@@ -89,10 +89,11 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
 
   const currentRole = (searchParams?.role as Role) || (finalUser.role as Role) || "agency";
 
-  // 3. User Experience Filtering
+  // 3. User Experience Filtering (V8.0 Hardened)
   let filteredTasks = (tasksData || []) as unknown as Task[];
   if (currentRole === "client") {
-    filteredTasks = filteredTasks.filter(t => t.created_by === finalUser.id || t.assignees.some((a: any) => a.user.id === finalUser.id));
+    // Clients ONLY see their own tasks
+    filteredTasks = filteredTasks.filter(t => t.created_by === finalUser.id);
   }
 
   return (

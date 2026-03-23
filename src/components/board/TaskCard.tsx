@@ -2,8 +2,8 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Task } from "@/types/kanban";
-import { Calendar, CheckSquare, MessageCircle, Paperclip } from "lucide-react";
+import { Task, Role } from "@/types/kanban";
+import { Calendar, CheckSquare, MessageCircle, Paperclip, LockIcon } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { TaskOptionsDropdown } from "./TaskOptionsDropdown";
@@ -12,9 +12,17 @@ interface TaskCardProps {
   task: Task;
   onClick?: () => void;
   onDelete?: () => void;
+  role?: Role;
+  isEditable?: boolean;
 }
 
-export function TaskCard({ task, onClick, onDelete }: TaskCardProps) {
+export function TaskCard({ 
+  task, 
+  onClick, 
+  onDelete, 
+  role = 'agency', 
+  isEditable = true 
+}: TaskCardProps) {
   const {
     attributes,
     listeners,
@@ -28,6 +36,7 @@ export function TaskCard({ task, onClick, onDelete }: TaskCardProps) {
       type: "Task",
       task,
     },
+    disabled: role === 'client' // V8.0: Clients cannot drag/move
   });
 
   const style = {
@@ -69,13 +78,18 @@ export function TaskCard({ task, onClick, onDelete }: TaskCardProps) {
       ref={setNodeRef}
       style={style}
       {...attributes}
-      {...listeners}
+      {...(isEditable ? listeners : {})} // V8.0 Disable listeners if not editable
       onClick={(e) => {
-        // Prevent opening if clicking dropdown
         onClick?.();
       }}
-      className="group relative bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-2xl hover:shadow-indigo-500/10 hover:border-indigo-100 transition-all duration-300 cursor-grab active:cursor-grabbing border-b-2 border-b-gray-100/50"
+      className={`group relative bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-2xl hover:shadow-indigo-500/10 hover:border-indigo-100 transition-all duration-300 ${isEditable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} border-b-2 border-b-gray-100/50`}
     >
+      {!isEditable && role === 'client' && (
+        <div className="absolute top-2 right-2 z-10 bg-slate-100 text-slate-400 p-1 rounded-md" title="Mover a otra fase está bloqueado para clientes">
+          <LockIcon size={10} />
+        </div>
+      )}
+
       <div className="flex flex-col gap-3">
         {/* Top Bar: Badges & Menu */}
         <div className="flex justify-between items-start gap-2">
@@ -94,18 +108,24 @@ export function TaskCard({ task, onClick, onDelete }: TaskCardProps) {
              ))}
            </div>
            
-           <TaskOptionsDropdown 
-              onDelete={onDelete || (() => {})} 
-              onEdit={() => onClick?.()} 
-              onCopyLink={handleCopyLink}
-           />
+           {/* Only show options if editable or agency */}
+           {(isEditable || role === 'agency') && (
+             <TaskOptionsDropdown 
+                onDelete={onDelete || (() => {})} 
+                onEdit={() => onClick?.()} 
+                onCopyLink={handleCopyLink}
+             />
+           )}
         </div>
 
         {/* Title & Description */}
         <div className="space-y-1">
-          <h4 className="font-bold text-gray-800 leading-[1.3] text-[13px] group-hover:text-indigo-600 transition-colors">
-            {task.title}
-          </h4>
+          <div className="flex items-start gap-2">
+            <h4 className="font-bold text-gray-800 leading-[1.3] text-[13px] group-hover:text-indigo-600 transition-colors">
+              {task.title}
+            </h4>
+            {!isEditable && role === 'client' && <span className="text-[8px] bg-slate-50 text-slate-400 px-1 rounded uppercase font-black">Read Only</span>}
+          </div>
           {task.description && (
             <p className="text-[11px] text-gray-400 line-clamp-2 font-medium leading-relaxed">
               {task.description}

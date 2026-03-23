@@ -20,7 +20,7 @@ import { TaskCard } from "./TaskCard";
 import { CreateTaskModal } from "./CreateTaskModal";
 import { TaskDetailModal } from "./TaskDetailModal";
 import { createClient } from "@/lib/supabase/client";
-import { LayoutGrid, List as ListIcon, Calendar as CalendarIcon, Filter, Search, User as UserIcon, Tag } from "lucide-react";
+import { LayoutGrid, List as ListIcon, Calendar as CalendarIcon, Filter, Search, User as UserIcon, Tag, Plus } from "lucide-react";
 import { ListView } from "./ListView";
 import { CalendarView } from "./CalendarView";
 
@@ -414,7 +414,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
               onDragEnd={onDragEnd}
             >
               <div className="flex gap-6 h-full items-start">
-                {columns.map((col) => (
+                {columns.sort((a, b) => a.position - b.position).map((col, index) => (
                   <BoardColumn
                     key={col.id}
                     column={col}
@@ -422,8 +422,21 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
                     onAddTask={(cid) => { setActiveColumnId(cid); setIsModalOpen(true); }}
                     onTaskClick={openTaskDetail}
                     onDeleteTask={deleteTask}
+                    role={role}
+                    isFirstColumn={index === 0}
                   />
                 ))}
+                
+                {/* New Column Button - Agency Only */}
+                {role === 'agency' && (
+                  <button
+                    onClick={() => { /* logic to add column */ }}
+                    className="h-fit min-w-[320px] bg-slate-100/50 hover:bg-slate-100 border-2 border-dashed border-slate-200 rounded-[32px] p-6 flex items-center justify-center gap-2 text-slate-400 hover:text-indigo-600 transition-all group shrink-0"
+                  >
+                    <Plus size={20} className="group-hover:scale-110 transition-transform" />
+                    <span className="text-sm font-black uppercase tracking-widest">Añadir Fase</span>
+                  </button>
+                )}
               </div>
               <DragOverlay>
                 {activeTask ? <TaskCard task={activeTask} /> : null}
@@ -483,6 +496,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
           task={detailTask}
           role={role}
           currentUser={currentUser}
+          isFirstColumn={columns.sort((a,b) => a.position - b.position)[0]?.id === detailTask.column_id}
         />
       )}
     </div>

@@ -25,9 +25,10 @@ interface TaskDetailModalProps {
   task: Task;
   role: Role;
   currentUser: User;
+  isFirstColumn: boolean;
 }
 
-export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, currentUser }: TaskDetailModalProps) {
+export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, currentUser, isFirstColumn }: TaskDetailModalProps) {
   const [task, setTask] = useState<Task>(initialTask);
   const [isLoading, setIsLoading] = useState(true);
   const [activeChat, setActiveChat] = useState<"external" | "internal">("external");
@@ -93,10 +94,12 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
 
   if (!isOpen) return null;
 
-  // --- ACTIONS ---
+  // --- PERMISSIONS (V8.0) ---
+  const canEdit = role === 'agency' || (role === 'client' && isFirstColumn);
+
   const handleAddChecklistItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newChecklistTitle.trim()) return;
+    if (!newChecklistTitle.trim() || !canEdit) return;
     try {
       const res = await fetch(`/api/tasks/${task.id}/checklists`, {
         method: "POST",
@@ -258,36 +261,46 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
               <div className="space-y-2">
                 {task.checklists?.map((item) => (
                   <div key={item.id} className="flex items-center gap-3 group bg-white hover:bg-slate-50 p-3 rounded-xl border border-gray-100 transition-all">
-                    <button 
-                      onClick={() => toggleChecklistItem(item.id, item.is_completed)}
-                      className={`transition-colors ${item.is_completed ? "text-indigo-600" : "text-gray-300 hover:text-indigo-400"}`}
-                    >
-                      {item.is_completed ? <CheckCircle2 size={20} /> : <Circle size={20} />}
-                    </button>
+                    {canEdit ? (
+                      <button 
+                        onClick={() => toggleChecklistItem(item.id, item.is_completed)}
+                        className={`transition-colors ${item.is_completed ? "text-indigo-600" : "text-gray-300 hover:text-indigo-400"}`}
+                      >
+                        {item.is_completed ? <CheckCircle2 size={20} /> : <Circle size={20} />}
+                      </button>
+                    ) : (
+                      <div className={item.is_completed ? "text-indigo-600/50" : "text-gray-200"}>
+                        {item.is_completed ? <CheckCircle2 size={20} /> : <Circle size={20} />}
+                      </div>
+                    )}
                     <span className={`flex-1 text-sm font-medium ${item.is_completed ? "text-gray-400 line-through" : "text-gray-700"}`}>
                       {item.title}
                     </span>
-                    <button 
-                      onClick={() => handleDeleteChecklistItem(item.id)}
-                      className="opacity-0 group-hover:opacity-100 text-rose-300 hover:text-rose-500 transition-all"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    {canEdit && (
+                      <button 
+                        onClick={() => handleDeleteChecklistItem(item.id)}
+                        className="opacity-0 group-hover:opacity-100 text-rose-300 hover:text-rose-500 transition-all"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
                   </div>
                 ))}
 
-                <form onSubmit={handleAddChecklistItem} className="flex gap-2 mt-4">
-                  <input 
-                    type="text"
-                    value={newChecklistTitle}
-                    onChange={(e) => setNewChecklistTitle(e.target.value)}
-                    placeholder="Añadir un paso..."
-                    className="flex-1 bg-slate-50 border-none rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 font-medium"
-                  />
-                  <button type="submit" className="bg-indigo-600 text-white p-2 rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100">
-                    <Plus size={20} />
-                  </button>
-                </form>
+                {canEdit && (
+                  <form onSubmit={handleAddChecklistItem} className="flex gap-2 mt-4">
+                    <input 
+                      type="text"
+                      value={newChecklistTitle}
+                      onChange={(e) => setNewChecklistTitle(e.target.value)}
+                      placeholder="Añadir un paso..."
+                      className="flex-1 bg-slate-50 border-none rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 font-medium"
+                    />
+                    <button type="submit" className="bg-indigo-600 text-white p-2 rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100">
+                      <Plus size={20} />
+                    </button>
+                  </form>
+                )}
               </div>
             </div>
 
@@ -298,12 +311,14 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
                   <Paperclip size={16} />
                   Adjuntos
                 </h4>
-                <button 
-                  onClick={() => setIsAddingAttachment(true)}
-                  className="text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-800"
-                >
-                  Agregar link
-                </button>
+                {canEdit && (
+                  <button 
+                    onClick={() => setIsAddingAttachment(true)}
+                    className="text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-800"
+                  >
+                    Agregar link
+                  </button>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -318,9 +333,11 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
                       </a>
                       <span className="text-[10px] text-gray-400 font-medium uppercase">{att.type}</span>
                     </div>
-                    <button onClick={() => deleteAttachment(att.id)} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-rose-500 transition-all">
-                      <Trash2 size={16} />
-                    </button>
+                    {canEdit && (
+                      <button onClick={() => deleteAttachment(att.id)} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-rose-500 transition-all">
+                        <Trash2 size={16} />
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>

@@ -2,9 +2,9 @@
 
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { Task, Column as ColumnType } from "@/types/kanban";
+import { Task, Column as ColumnType, Role } from "@/types/kanban";
 import { TaskCard } from "./TaskCard";
-import { PlusIcon, MoreHorizontalIcon } from "lucide-react";
+import { PlusIcon, MoreHorizontalIcon, LockIcon } from "lucide-react";
 
 interface ColumnProps {
   column: ColumnType;
@@ -12,9 +12,19 @@ interface ColumnProps {
   onAddTask?: (columnId: string) => void;
   onTaskClick: (task: Task) => void;
   onDeleteTask: (taskId: string) => void;
+  role?: Role;
+  isFirstColumn?: boolean;
 }
 
-export function Column({ column, tasks, onAddTask, onTaskClick, onDeleteTask }: ColumnProps) {
+export function Column({ 
+  column, 
+  tasks, 
+  onAddTask, 
+  onTaskClick, 
+  onDeleteTask, 
+  role = 'agency',
+  isFirstColumn = false
+}: ColumnProps) {
   const { setNodeRef } = useDroppable({
     id: column.id,
     data: {
@@ -23,6 +33,9 @@ export function Column({ column, tasks, onAddTask, onTaskClick, onDeleteTask }: 
     },
   });
 
+  const canAddTasks = role === 'agency' || (role === 'client' && isFirstColumn);
+  const canEditColumn = role === 'agency';
+
   return (
     <div
       ref={setNodeRef}
@@ -30,6 +43,7 @@ export function Column({ column, tasks, onAddTask, onTaskClick, onDeleteTask }: 
     >
       <div className="flex items-center justify-between mb-4 px-1">
         <div className="flex items-center gap-2">
+          {!canEditColumn && <LockIcon size={12} className="text-gray-400" />}
           <h3 className="font-semibold text-gray-800 text-sm">
             {column.title}
           </h3>
@@ -37,9 +51,12 @@ export function Column({ column, tasks, onAddTask, onTaskClick, onDeleteTask }: 
             {tasks.length}
           </span>
         </div>
-        <button className="text-gray-400 hover:text-gray-600 p-1 rounded-md hover:bg-gray-200/50 transition-colors">
-          <MoreHorizontalIcon className="w-4 h-4" />
-        </button>
+        
+        {canEditColumn && (
+          <button className="text-gray-400 hover:text-gray-600 p-1 rounded-md hover:bg-gray-200/50 transition-colors">
+            <MoreHorizontalIcon className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-[150px] space-y-3 p-1 custom-scrollbar">
@@ -50,18 +67,22 @@ export function Column({ column, tasks, onAddTask, onTaskClick, onDeleteTask }: 
               task={task} 
               onClick={() => onTaskClick(task)} 
               onDelete={() => onDeleteTask(task.id)}
+              role={role}
+              isEditable={role === 'agency' || (role === 'client' && isFirstColumn)}
             />
           ))}
         </SortableContext>
       </div>
 
-      <button
-        onClick={() => onAddTask?.(column.id)}
-        className="mt-4 flex items-center justify-center w-full py-2.5 text-sm font-medium text-gray-500 hover:text-gray-800 bg-transparent hover:bg-gray-200/50 rounded-xl transition-all border border-dashed border-gray-300 hover:border-gray-400"
-      >
-        <PlusIcon className="w-4 h-4 mr-1.5" />
-        New Task
-      </button>
+      {canAddTasks && (
+        <button
+          onClick={() => onAddTask?.(column.id)}
+          className="mt-4 flex items-center justify-center w-full py-2.5 text-sm font-medium text-gray-500 hover:text-gray-800 bg-transparent hover:bg-gray-200/50 rounded-xl transition-all border border-dashed border-gray-300 hover:border-gray-400"
+        >
+          <PlusIcon className="w-4 h-4 mr-1.5" />
+          New Task
+        </button>
+      )}
     </div>
   );
 }
