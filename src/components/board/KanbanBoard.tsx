@@ -172,6 +172,15 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
           if (updatedTask) setTasks(prev => prev.map(t => t.id === taskId ? updatedTask : t));
         }
       })
+      .on("postgres_changes", { event: "*", schema: "public", table: "columns" }, async (payload: any) => {
+        if (payload.eventType === "INSERT") {
+          setColumns(prev => [...prev, payload.new].sort((a,b) => a.position - b.position));
+        } else if (payload.eventType === "UPDATE") {
+          setColumns(prev => prev.map(c => c.id === payload.new.id ? payload.new : c).sort((a,b) => a.position - b.position));
+        } else if (payload.eventType === "DELETE") {
+          setColumns(prev => prev.filter(c => c.id === payload.old.id));
+        }
+      })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -215,10 +224,12 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
       setTimeout(() => setSyncError(null), 5000);
     }
   };
-
   const handleAddColumn = async () => {
     const title = prompt("Nombre de la nueva fase:");
     if (!title) return;
+    
+    // V9.2 - Visibility Choice
+    const isVisibleToClient = confirm("¿Deseas que esta fase sea visible para el CLIENTE?\n\nAceptar = Visible\nCancelar = Solo Agencia");
 
     try {
       const res = await fetch("/api/columns", {
@@ -227,11 +238,48 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
           "Content-Type": "application/json",
           "x-test-user": currentUser.id
         },
-        body: JSON.stringify({ title, position: columns.length + 1 })
+        body: JSON.stringify({ 
+          title, 
+          position: columns.length + 1,
+          is_visible_to_client: isVisibleToClient
+        })
       });
       if (res.ok) {
         const newCol = await res.json();
-        setColumns(prev => [...prev, newCol].sort((a,b) => a.position - b.position));
+        setColumns(prev => {
+          if (prev.some(c => c.id === newCol.id)) return prev;
+          return [...prev, newCol].sort((a,b) => a.position - b.position);
+        });
+      }
+    } catch (err) { console.error(err); }
+  };
+
+  const handleUpdateColumn = async (id: string, title: string, is_visible_to_client?: boolean) => {
+    try {
+      const res = await fetch(`/api/columns/${id}`, {
+        method: "PUT",
+        headers: { 
+          "Content-Type": "application/json",
+          "x-test-user": currentUser.id
+        },
+        body: JSON.stringify({ title, is_visible_to_client })
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setColumns(prev => prev.map(c => c.id === id ? updated : c));
+      }
+    } catch (err) { console.error(err); }
+  };
+
+  const handleDeleteColumn = async (id: string) => {
+    if (!confirm("¿Estás seguro de que deseas eliminar esta fase? Todas las tareas dentro serán eliminadas.")) return;
+    try {
+      const res = await fetch(`/api/columns/${id}`, {
+        method: "DELETE",
+        headers: { "x-test-user": currentUser.id }
+      });
+      if (res.ok) {
+        setColumns(prev => prev.filter(c => c.id !== id));
       }
     } catch (err) { console.error(err); }
   };
@@ -492,6 +540,8 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
                       onAddTask={(cid) => { setActiveColumnId(cid); setIsModalOpen(true); }}
                       onTaskClick={openTaskDetail}
                       onDeleteTask={deleteTask}
+                      onUpdateColumn={handleUpdateColumn}
+                      onDeleteColumn={handleDeleteColumn}
                       role={role}
                       isFirstColumn={index === 0}
                     />

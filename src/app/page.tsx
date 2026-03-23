@@ -41,6 +41,9 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
     const { data: seeded } = await supabase.from('columns').insert(DEFAULT_COLUMNS).select();
     if (seeded) finalColumns = seeded as Column[];
   }
+  
+  // V9.2 - Filter columns for clients
+  const finalRole = (searchParams?.role as Role) || "client"; // Need to calculate role earlier or pass it
 
   // 2. IDENTITY RESOLUTION (V7.0 Braced)
   const cookieStore = await cookies();
@@ -89,6 +92,11 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
   } as User;
 
   const currentRole = (searchParams?.role as Role) || (finalUser.role as Role) || "agency";
+
+  // V9.2 - Filter columns for clients
+  if (currentRole === "client") {
+    finalColumns = finalColumns.filter(c => c.is_visible_to_client !== false);
+  }
 
   // 3. User Experience Filtering (V8.0 Hardened)
   let filteredTasks = (tasksData || []) as unknown as Task[];
@@ -144,16 +152,18 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
             </a>
           </div>
 
-          <a 
-            href={`?user_id=${finalUser.id}${isDebug ? "&debug=true" : ""}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="ml-4 flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl border border-indigo-100 transition-all text-[9px] font-black uppercase tracking-widest group shadow-sm hover:shadow-md"
-            title="Sincronizar sesión en una pestaña nueva"
-          >
-            <ExternalLink size={12} className="group-hover:scale-110 transition-transform" />
-            Abrir en Nueva Pestaña
-          </a>
+          {currentRole === "agency" && (
+            <a 
+              href={`?user_id=${finalUser.id}${isDebug ? "&debug=true" : ""}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ml-4 flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl border border-indigo-100 transition-all text-[9px] font-black uppercase tracking-widest group shadow-sm hover:shadow-md"
+              title="Sincronizar sesión en una pestaña nueva"
+            >
+              <ExternalLink size={12} className="group-hover:scale-110 transition-transform" />
+              Abrir en Nueva Pestaña
+            </a>
+          )}
         </div>
         
         <div className="flex items-center gap-6">

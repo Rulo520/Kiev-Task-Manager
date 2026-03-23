@@ -77,5 +77,6 @@ export type Column = {
   id: string;
   title: string;
   position: number;
+  is_visible_to_client?: boolean;
   location_id: string | null;
 };

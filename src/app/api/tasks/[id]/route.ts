@@ -28,7 +28,7 @@ export async function GET(
         ),
         checklists:task_checklists(*),
         attachments:task_attachments(*),
-        comments:task_comments(*)
+        comments:task_comments(*, user:users(id, first_name, last_name, profile_pic))
       `)
       .eq("id", id)
       .single();

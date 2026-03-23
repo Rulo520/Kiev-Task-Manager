@@ -37,6 +37,9 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
   const [newAttachmentName, setNewAttachmentName] = useState("");
   const [newAttachmentUrl, setNewAttachmentUrl] = useState("");
   const [isAddingAttachment, setIsAddingAttachment] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [isEditingDesc, setIsEditingDesc] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const fetchTaskDetails = useCallback(async () => {
     setIsLoading(true);
@@ -196,6 +199,25 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
     } catch (err) { console.error(err); }
   };
 
+  const handleUpdateTask = async (updates: Partial<Task>) => {
+    setIsSyncing(true);
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "PUT",
+        headers: { 
+          "Content-Type": "application/json",
+          "x-test-user": currentUser.id
+        },
+        body: JSON.stringify({ id: task.id, ...updates })
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setTask(updated);
+      }
+    } catch (err) { console.error(err); }
+    finally { setIsSyncing(false); }
+  };
+
   // Checklist Progress
   const completedItems = task.checklists?.filter(i => i.is_completed).length || 0;
   const totalItems = task.checklists?.length || 0;
@@ -216,16 +238,42 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
             {/* Header */}
             <div>
               <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-slate-100 text-slate-500 mb-3 inline-block`}>
-                Tarea Detalle
+                Tarea Detalle {isSyncing && "• Guardando..."}
               </span>
-              <h2 className="text-3xl font-black text-gray-800 leading-tight">{task.title}</h2>
-              <div className="flex items-center gap-3 mt-4 text-xs font-medium text-gray-400">
+              
+              {role === 'agency' ? (
+                <div className="group relative">
+                  <input 
+                    type="text"
+                    value={task.title}
+                    onChange={(e) => setTask({...task, title: e.target.value})}
+                    onBlur={() => handleUpdateTask({ title: task.title })}
+                    className="w-full text-3xl font-black text-gray-800 leading-tight bg-transparent border-none focus:ring-2 focus:ring-indigo-500/10 rounded-xl px-0 hover:bg-slate-50 transition-all font-sans italic tracking-tighter"
+                  />
+                </div>
+              ) : (
+                <h2 className="text-3xl font-black text-gray-800 leading-tight font-sans italic tracking-tighter">{task.title}</h2>
+              )}
+
+              <div className="flex flex-wrap items-center gap-4 mt-4 text-xs font-medium text-gray-400">
                 <div className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-indigo-500" />
                   Creado por Agencia
                 </div>
                 <span>•</span>
                 <div>{format(new Date(task.created_at), "dd MMMM yyyy", { locale: es })}</div>
+                
+                {role === 'agency' && (
+                  <div className="flex items-center gap-2">
+                    <span>•</span>
+                    <input 
+                      type="date"
+                      value={task.due_date ? format(new Date(task.due_date), "yyyy-MM-dd") : ""}
+                      onChange={(e) => handleUpdateTask({ due_date: e.target.value })}
+                      className="bg-transparent border-none text-[10px] font-black uppercase tracking-widest text-indigo-600 focus:ring-0 p-0 cursor-pointer"
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -234,9 +282,19 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
               <h4 className="text-sm font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
                 Descripción
               </h4>
-              <p className="text-gray-600 bg-slate-50/50 p-6 rounded-2xl border border-dashed border-gray-200 text-sm leading-relaxed">
-                {task.description || "Sin descripción proporcionada."}
-              </p>
+              {role === 'agency' ? (
+                <textarea 
+                  value={task.description || ""}
+                  onChange={(e) => setTask({...task, description: e.target.value})}
+                  onBlur={() => handleUpdateTask({ description: task.description })}
+                  placeholder="Añadir una descripción detallada..."
+                  className="w-full text-gray-600 bg-slate-50/50 p-6 rounded-2xl border border-dashed border-gray-200 text-sm leading-relaxed focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all min-h-[120px] resize-none"
+                />
+              ) : (
+                <p className="text-gray-600 bg-slate-50/50 p-6 rounded-2xl border border-dashed border-gray-200 text-sm leading-relaxed">
+                  {task.description || "Sin descripción proporcionada."}
+                </p>
+              )}
             </div>
 
             {/* Checklist */}

@@ -19,12 +19,13 @@ CREATE TABLE public.users (
 );
 
 -- 2. COLUMNS TABLE
-CREATE TABLE public.columns (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  title VARCHAR(255) NOT NULL,
+CREATE TABLE IF NOT EXISTS public.columns (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  title TEXT NOT NULL,
   position INTEGER NOT NULL,
-  location_id VARCHAR(255), -- Optional: for per-location boards
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  is_visible_to_client BOOLEAN DEFAULT true,
+  location_id TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
 );
 
 -- Default columns might be: Todo, In Progress, Review, Done (can be inserted later)

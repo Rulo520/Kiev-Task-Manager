@@ -11,13 +11,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized: Agency only" }, { status: 401 });
     }
 
-    const { title, position } = await req.json();
+    const { title, position, is_visible_to_client } = await req.json();
 
     const { data: column, error } = await supabase
       .from("columns")
       .insert({
         title,
         position,
+        is_visible_to_client: is_visible_to_client !== undefined ? is_visible_to_client : true,
         location_id: authUser.location_id
       })
       .select()
