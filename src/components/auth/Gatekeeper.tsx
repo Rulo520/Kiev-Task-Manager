@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Lock, ArrowRight, Loader2, AlertCircle, RefreshCw, ExternalLink } from "lucide-react";
+import { Lock, ArrowRight, Loader2, AlertCircle, RefreshCw, ExternalLink, Layers, ShieldCheck, Trash2 } from "lucide-react";
+import { APP_VERSION, APP_PROTOCOL, APP_SAFETY, APP_NAME } from "@/constants/version";
 
 interface GatekeeperProps {
   debug?: boolean;
@@ -72,7 +73,7 @@ export function Gatekeeper({ debug, isIframe }: GatekeeperProps) {
               {isDetecting ? "Detectando" : "Acceso"} <span className="text-indigo-600 font-black">{isDetecting ? "Plataforma..." : "Denegado"}</span>
             </h1>
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] opacity-60">
-              Kiev Intelligence Protocol • V7.2
+              {APP_PROTOCOL} • {APP_VERSION}
             </p>
           </div>
 
@@ -80,7 +81,7 @@ export function Gatekeeper({ debug, isIframe }: GatekeeperProps) {
             <div className="flex flex-col items-center gap-6 py-10 w-full animate-pulse">
               <Loader2 size={48} className="text-indigo-600 animate-spin" />
               <div className="space-y-2 text-center">
-                <p className="text-sm font-black text-slate-600 tracking-tight">Verificando sesión en Kiev Platform...</p>
+                <p className="text-sm font-black text-slate-600 tracking-tight">Verificando sesión en {APP_NAME}...</p>
                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Esto puede tardar unos segundos</p>
               </div>
             </div>
@@ -103,7 +104,7 @@ export function Gatekeeper({ debug, isIframe }: GatekeeperProps) {
                          <RefreshCw size={12} strokeWidth={3} /> Acción Requerida
                        </p>
                        <p className="text-[11px] text-amber-700 font-medium leading-relaxed">
-                         Para usar esta ventana independiente, vuelve a **Kiev Platform (GHL)** y haz clic en el botón <span className="font-bold text-amber-900 uppercase">"Abrir en Nueva Pestaña"</span> dentro del tablero. Esto sincronizará tu acceso.
+                         Para usar esta ventana independiente, vuelve a **{APP_NAME} (GHL)** y haz clic en el botón <span className="font-bold text-amber-900 uppercase">"Abrir en Nueva Pestaña"</span> dentro del tablero. Esto sincronizará tu acceso.
                        </p>
                      </div>
                    )}
@@ -139,7 +140,7 @@ export function Gatekeeper({ debug, isIframe }: GatekeeperProps) {
 
               <div className="flex flex-col items-center gap-1 opacity-30 mt-4">
                 <p className="text-[8px] text-gray-400 font-black uppercase tracking-[0.2em]">
-                  Kiev Safety Protocol V7.2
+                  {APP_SAFETY} {APP_VERSION}
                 </p>
                 <p className="text-[7px] text-gray-300 font-bold uppercase">
                   Cross-Domain Sandbox Bridge

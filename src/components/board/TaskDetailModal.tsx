@@ -399,26 +399,42 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
           </div>
 
           {/* Messages List */}
-          <div className="flex-1 overflow-y-auto space-y-4 no-scrollbar min-h-[300px] mb-6 pr-2">
-            {task.comments?.filter(c => c.type === activeChat).map((comment) => (
-              <div key={comment.id} className={`flex flex-col gap-2 ${comment.user_id === currentUser.id ? "items-end" : ""}`}>
-                <div className={`max-w-[85%] p-3 rounded-2xl text-xs font-medium ${
-                  comment.user_id === currentUser.id 
-                    ? (activeChat === "internal" ? "bg-indigo-600 text-white rounded-tr-none" : "bg-white border border-gray-100 text-gray-800 shadow-sm rounded-tr-none")
-                    : "bg-white border border-gray-100 text-gray-800 shadow-sm rounded-tl-none"
-                }`}>
-                  <div className="flex items-center justify-between gap-4 mb-2">
-                    <span className="text-[9px] font-black uppercase opacity-60">
-                      {comment.user?.first_name}
-                    </span>
-                    <span className="text-[8px] opacity-40">
-                      {format(new Date(comment.created_at), "HH:mm")}
-                    </span>
+          <div className="flex-1 overflow-y-auto space-y-6 no-scrollbar min-h-[300px] mb-6 pr-2 py-4">
+            {task.comments?.filter(c => c.type === activeChat).map((comment) => {
+              const isMe = comment.user_id === currentUser.id;
+              
+              return (
+                <div key={comment.id} className={`flex gap-3 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
+                  {/* Avatar bubble */}
+                  <div className="flex-shrink-0 h-8 w-8 rounded-full bg-slate-100 border border-white shadow-sm overflow-hidden mt-auto">
+                    {comment.user?.profile_pic ? (
+                      <img src={comment.user.profile_pic} alt="" className="object-cover h-full w-full" />
+                    ) : (
+                      <div className="h-full w-full flex items-center justify-center text-[10px] font-black text-indigo-600 bg-indigo-50">
+                        {comment.user?.first_name[0]}{comment.user?.last_name[0]}
+                      </div>
+                    )}
                   </div>
-                  {comment.content}
+
+                  <div className={`flex flex-col gap-1 max-w-[80%] ${isMe ? "items-end" : "items-start"}`}>
+                    <div className={`p-3 rounded-2xl text-xs font-medium shadow-sm border ${
+                      isMe 
+                        ? (activeChat === "internal" 
+                          ? "bg-indigo-600 text-white border-indigo-500 rounded-tr-none" 
+                          : "bg-indigo-50 border-indigo-100 text-indigo-900 rounded-tr-none")
+                        : "bg-white border-gray-100 text-gray-800 rounded-tl-none"
+                    }`}>
+                      {comment.content}
+                    </div>
+                    <div className="flex items-center gap-2 px-1 text-[8px] font-black uppercase tracking-widest opacity-40">
+                      <span>{comment.user?.first_name}</span>
+                      <span>•</span>
+                      <span>{format(new Date(comment.created_at), "HH:mm")}</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             {(!task.comments || task.comments.filter(c => c.type === activeChat).length === 0) && (
               <div className="h-full flex flex-col items-center justify-center text-center opacity-30 select-none">
                 <MessageSquare size={32} className="mb-2" />

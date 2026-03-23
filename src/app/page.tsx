@@ -1,4 +1,5 @@
 import { KanbanBoard } from "@/components/board/KanbanBoard";
+import { APP_VERSION, APP_NAME } from "@/constants/version";
 import { Gatekeeper } from "@/components/auth/Gatekeeper";
 import { createClient } from "@supabase/supabase-js";
 import { Column, Task, User, Role } from "@/types/kanban";
@@ -31,7 +32,7 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
   const [{ data: columnsData }, { data: dbUsers }, { data: tasksData }, { data: labelsData }] = await Promise.all([
     supabase.from('columns').select('*').order('position', { ascending: true }),
     supabase.from('users').select('*'),
-    supabase.from('tasks').select(`*, creator:users!created_by(*), assignees:task_assignees(user:users(id, first_name, last_name, profile_pic)), labels:task_labels(label:labels(*)), checklists:task_checklists(*), attachments:task_attachments(*), comments:task_comments(*)`).order('position', { ascending: true }),
+    supabase.from('tasks').select(`*, creator:users!created_by(*), assignees:task_assignees(user:users(id, first_name, last_name, profile_pic)), labels:task_labels(label:labels(*)), checklists:task_checklists(*), attachments:task_attachments(*), comments:task_comments(*)`).order('created_at', { ascending: false }),
     supabase.from('labels').select('*')
   ]);
 
@@ -120,11 +121,11 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
           </div>
           <div className="flex flex-col">
             <h1 className="text-lg font-black text-gray-900 tracking-tight leading-none uppercase">
-              Kiev Platform <span className="text-indigo-600">Pro</span>
+              {APP_NAME} <span className="text-indigo-600">Pro</span>
             </h1>
             <div className="flex items-center gap-2 mt-1">
               <span className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] opacity-60">Intelligence Console</span>
-              <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-400 text-[8px] font-black border border-slate-200/50">V7.1</span>
+              <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-400 text-[8px] font-black border border-slate-200/50">{APP_VERSION}</span>
             </div>
           </div>
           

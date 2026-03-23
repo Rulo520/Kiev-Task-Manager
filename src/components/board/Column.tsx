@@ -1,10 +1,10 @@
 "use client";
 
-import { useDroppable } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { useSortable, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Task, Column as ColumnType, Role } from "@/types/kanban";
 import { TaskCard } from "./TaskCard";
-import { PlusIcon, MoreHorizontalIcon, LockIcon } from "lucide-react";
+import { PlusIcon, MoreHorizontalIcon, LockIcon, GripVerticalIcon } from "lucide-react";
 
 interface ColumnProps {
   column: ColumnType;
@@ -25,25 +25,55 @@ export function Column({
   role = 'agency',
   isFirstColumn = false
 }: ColumnProps) {
-  const { setNodeRef } = useDroppable({
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({
     id: column.id,
     data: {
       type: "Column",
       column,
     },
+    disabled: role === 'client'
   });
+
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+  };
 
   const canAddTasks = role === 'agency' || (role === 'client' && isFirstColumn);
   const canEditColumn = role === 'agency';
 
+  if (isDragging) {
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        className="opacity-30 bg-gray-100 border-2 border-indigo-500 rounded-2xl w-[320px] min-w-[320px] h-[500px]"
+      />
+    );
+  }
+
   return (
     <div
       ref={setNodeRef}
-      className="bg-gray-50/50 rounded-2xl p-4 w-[320px] min-w-[320px] flex flex-col max-h-full border border-gray-200/60 shadow-sm"
+      style={style}
+      className="bg-gray-50/50 rounded-[32px] p-6 w-[320px] min-w-[320px] flex flex-col max-h-full border border-gray-200/60 shadow-sm transition-shadow hover:shadow-md"
     >
-      <div className="flex items-center justify-between mb-4 px-1">
-        <div className="flex items-center gap-2">
-          {!canEditColumn && <LockIcon size={12} className="text-gray-400" />}
+      <div className="flex items-center justify-between mb-6 px-1">
+        <div className="flex items-center gap-3">
+          {canEditColumn ? (
+            <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition-colors">
+              <GripVerticalIcon size={14} />
+            </div>
+          ) : (
+            <LockIcon size={12} className="text-gray-400" />
+          )}
           <h3 className="font-semibold text-gray-800 text-sm">
             {column.title}
           </h3>

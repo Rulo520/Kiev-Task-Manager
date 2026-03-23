@@ -1,10 +1,12 @@
 import { Inter } from "next/font/google";
 import "./globals.css";
 
+import { APP_NAME } from "@/constants/version";
+
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
-  title: "Kiev Platform Pro",
+  title: `${APP_NAME} Pro`,
   description: "Intelligence Console",
 };
 

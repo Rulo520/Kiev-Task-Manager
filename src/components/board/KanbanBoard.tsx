@@ -13,7 +13,13 @@ import {
   DragOverEvent,
   DragEndEvent,
 } from "@dnd-kit/core";
-import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  horizontalListSortingStrategy,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { Column, Task, User, Role, Label } from "@/types/kanban";
 import { Column as BoardColumn } from "./Column";
 import { TaskCard } from "./TaskCard";
@@ -36,7 +42,7 @@ interface KanbanBoardProps {
 export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, initialAgencyUsers = [], allLabels = [] }: KanbanBoardProps) {
   // --- STATE ---
   const [view, setView] = useState<"kanban" | "list" | "calendar">("kanban");
-  const [columns] = useState<Column[]>(initialColumns);
+  const [columns, setColumns] = useState<Column[]>(initialColumns);
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const tasksRef = useRef<Task[]>(initialTasks);
   const [agencyUsers] = useState<User[]>(initialAgencyUsers);
@@ -95,6 +101,24 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
   }, [supabase]);
 
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in an input/textarea
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      if (e.key.toLowerCase() === 'f') {
+        setShowFilters(prev => !prev);
+      }
+      if (e.key.toLowerCase() === 'y') {
+        setFilterAssignee(currentUser.id);
+        setShowFilters(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentUser.id]);
+
+  useEffect(() => {
     const channel = supabase
       .channel("kanban-global-sync")
       .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, async (payload) => {
@@ -104,7 +128,8 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
           if (updatedTask) {
             setTasks((prev) => {
               const otherTasks = prev.filter(t => t.id !== id);
-              return [...otherTasks, updatedTask].sort((a, b) => (a.position - b.position) || (a.id > b.id ? 1 : -1));
+              // Order by created_at DESC (Newest First)
+              return [...otherTasks, updatedTask].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
             });
           }
         } else if (payload.eventType === "DELETE") {
@@ -191,6 +216,26 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
     }
   };
 
+  const handleAddColumn = async () => {
+    const title = prompt("Nombre de la nueva fase:");
+    if (!title) return;
+
+    try {
+      const res = await fetch("/api/columns", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "x-test-user": currentUser.id
+        },
+        body: JSON.stringify({ title, position: columns.length + 1 })
+      });
+      if (res.ok) {
+        const newCol = await res.json();
+        setColumns(prev => [...prev, newCol].sort((a,b) => a.position - b.position));
+      }
+    } catch (err) { console.error(err); }
+  };
+
   function onDragStart(event: DragStartEvent) {
     if (event.active.data.current?.type === "Task") {
       setActiveTask(event.active.data.current.task);
@@ -201,6 +246,26 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
     setActiveTask(null);
     const { active, over } = event;
     if (!over) return;
+
+    if (active.data.current?.type === "Column") {
+      if (active.id !== over.id) {
+        setColumns((items) => {
+          const oldIndex = items.findIndex((i) => i.id === active.id);
+          const newIndex = items.findIndex((i) => i.id === over.id);
+          const newCols = arrayMove(items, oldIndex, newIndex);
+          
+          // Persist reorder
+          fetch("/api/columns/reorder", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-test-user": currentUser.id },
+            body: JSON.stringify({ columnIds: newCols.map(c => c.id) })
+          });
+          
+          return newCols;
+        });
+      }
+      return;
+    }
 
     const movedTask = tasksRef.current.find(t => t.id === active.id);
     if (!movedTask) return;
@@ -238,8 +303,8 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
       }
       
       const updated = await res.json();
-      // Ensure local state matches exactly what API returned
-      setTasks(prev => prev.map(t => t.id === updated.id ? updated : t).sort((a,b) => a.position - b.position));
+      // Ensure local state matches Newest First
+      setTasks(prev => prev.map(t => t.id === updated.id ? updated : t).sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
     } catch (err: any) {
       console.error("Error saving position:", err);
       // Revert state if persistence fails
@@ -414,23 +479,29 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
               onDragEnd={onDragEnd}
             >
               <div className="flex gap-6 h-full items-start">
-                {columns.sort((a, b) => a.position - b.position).map((col, index) => (
-                  <BoardColumn
-                    key={col.id}
-                    column={col}
-                    tasks={filteredTasks.filter((task) => task.column_id === col.id)}
-                    onAddTask={(cid) => { setActiveColumnId(cid); setIsModalOpen(true); }}
-                    onTaskClick={openTaskDetail}
-                    onDeleteTask={deleteTask}
-                    role={role}
-                    isFirstColumn={index === 0}
-                  />
-                ))}
+                <SortableContext 
+                  items={columns.map(c => c.id)} 
+                  strategy={horizontalListSortingStrategy}
+                  disabled={role === 'client'}
+                >
+                  {columns.sort((a, b) => a.position - b.position).map((col, index) => (
+                    <BoardColumn
+                      key={col.id}
+                      column={col}
+                      tasks={filteredTasks.filter((task) => task.column_id === col.id)}
+                      onAddTask={(cid) => { setActiveColumnId(cid); setIsModalOpen(true); }}
+                      onTaskClick={openTaskDetail}
+                      onDeleteTask={deleteTask}
+                      role={role}
+                      isFirstColumn={index === 0}
+                    />
+                  ))}
+                </SortableContext>
                 
                 {/* New Column Button - Agency Only */}
                 {role === 'agency' && (
                   <button
-                    onClick={() => { /* logic to add column */ }}
+                    onClick={handleAddColumn}
                     className="h-fit min-w-[320px] bg-slate-100/50 hover:bg-slate-100 border-2 border-dashed border-slate-200 rounded-[32px] p-6 flex items-center justify-center gap-2 text-slate-400 hover:text-indigo-600 transition-all group shrink-0"
                   >
                     <Plus size={20} className="group-hover:scale-110 transition-transform" />
@@ -478,7 +549,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
           });
           if (res.ok) {
             const saved = await res.json();
-            setTasks(prev => [...prev.filter(t => t.id !== saved.id), saved].sort((a, b) => a.position - b.position));
+            setTasks(prev => [...prev.filter(t => t.id !== saved.id), saved].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
             setIsModalOpen(false);
           }
         }}
