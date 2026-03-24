@@ -612,7 +612,6 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
         onSubmit={handleCreateTask}
         role={role}
         columnId={activeColumnId || ""}
-        currentUser={currentUser}
         agencyUsers={agencyUsers}
         availableLabels={labels}
         onLabelCreated={(newLabel) => setLabels(prev => [...prev, newLabel])}
