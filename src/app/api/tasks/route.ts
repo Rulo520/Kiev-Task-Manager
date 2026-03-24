@@ -155,6 +155,20 @@ export async function PUT(req: Request) {
 
     if (error) throw error;
 
+    // V9.3 - Handle Assignee Updates (Agency Only/Privileged)
+    const { assignees } = body;
+    if (assignees && Array.isArray(assignees)) {
+      // Sync assignees: delete old, insert new
+      await supabase.from("task_assignees").delete().eq("task_id", id);
+      if (assignees.length > 0) {
+        const assigneeRows = assignees.map((userId: string) => ({
+          task_id: id,
+          user_id: userId
+        }));
+        await supabase.from("task_assignees").insert(assigneeRows);
+      }
+    }
+
     // Handle Label Updates
     if (labels) {
       await supabase.from("task_labels").delete().eq("task_id", id);

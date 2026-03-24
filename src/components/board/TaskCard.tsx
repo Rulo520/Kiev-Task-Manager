@@ -190,7 +190,9 @@ export function TaskCard({
             
             {/* Creator Avatar Small */}
             <div className="flex items-center gap-1.5 grayscale opacity-40 hover:grayscale-0 hover:opacity-100 transition-all cursor-default">
-              <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Por</span>
+              <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest truncate max-w-[60px]">
+                {task.creator?.first_name || "Agencia"}
+              </span>
               <div className="h-4 w-4 rounded-full bg-slate-100 flex items-center justify-center border border-white shadow-sm overflow-hidden">
                 {task.creator?.profile_pic ? (
                   <img src={task.creator.profile_pic} alt="" className="object-cover h-full w-full" />

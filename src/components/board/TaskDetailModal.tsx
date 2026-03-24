@@ -26,9 +26,10 @@ interface TaskDetailModalProps {
   role: Role;
   currentUser: User;
   isFirstColumn: boolean;
+  agencyUsers?: User[];
 }
 
-export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, currentUser, isFirstColumn }: TaskDetailModalProps) {
+export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, currentUser, isFirstColumn, agencyUsers = [] }: TaskDetailModalProps) {
   const [task, setTask] = useState<Task>(initialTask);
   const [isLoading, setIsLoading] = useState(true);
   const [activeChat, setActiveChat] = useState<"external" | "internal">("external");
@@ -258,7 +259,7 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
               <div className="flex flex-wrap items-center gap-4 mt-4 text-xs font-medium text-gray-400">
                 <div className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-indigo-500" />
-                  Creado por Agencia
+                  Creado por {task.creator?.first_name || "Agencia"}
                 </div>
                 <span>•</span>
                 <div>{format(new Date(task.created_at), "dd MMMM yyyy", { locale: es })}</div>
@@ -276,6 +277,49 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
                 )}
               </div>
             </div>
+            
+            {/* V9.3 - Members / Assignees (Agency Only) */}
+            {role === 'agency' && (
+              <div className="space-y-3">
+                <h4 className="text-sm font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
+                  Miembros
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {agencyUsers.map(user => {
+                    const isAssigned = task.assignees?.some(a => a.user.id === user.id);
+                    return (
+                      <button
+                        key={user.id}
+                        onClick={() => {
+                          const currentAssignees = task.assignees?.map(a => a.user.id) || [];
+                          const newAssignees = isAssigned 
+                            ? currentAssignees.filter(id => id !== user.id)
+                            : [...currentAssignees, user.id];
+                          handleUpdateTask({ assignees: newAssignees as any });
+                        }}
+                        className={`group relative flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all ${
+                          isAssigned 
+                            ? "bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100" 
+                            : "bg-white border-gray-100 text-gray-400 hover:border-indigo-200 hover:text-indigo-600"
+                        }`}
+                        title={user.first_name + " " + user.last_name}
+                      >
+                        <div className="h-5 w-5 rounded-lg overflow-hidden border border-white/20">
+                          {user.profile_pic ? (
+                            <img src={user.profile_pic} alt="" className="h-full w-full object-cover" />
+                          ) : (
+                            <div className={`h-full w-full flex items-center justify-center text-[8px] font-black ${isAssigned ? "text-white" : "text-indigo-600 bg-indigo-50"}`}>
+                              {user.first_name[0]}{user.last_name[0]}
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-[10px] font-black uppercase tracking-tight">{user.first_name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Description */}
             <div className="space-y-3">

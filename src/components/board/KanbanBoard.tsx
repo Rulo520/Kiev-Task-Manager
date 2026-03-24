@@ -618,6 +618,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
           role={role}
           currentUser={currentUser}
           isFirstColumn={columns.sort((a,b) => a.position - b.position)[0]?.id === detailTask.column_id}
+          agencyUsers={agencyUsers}
         />
       )}
     </div>
