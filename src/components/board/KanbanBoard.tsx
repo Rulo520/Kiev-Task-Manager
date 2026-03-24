@@ -47,6 +47,8 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
   const tasksRef = useRef<Task[]>(initialTasks);
   const [agencyUsers] = useState<User[]>(initialAgencyUsers);
   
+  const [labels, setLabels] = useState<Label[]>(allLabels);
+  
   // Filtering state
   const [searchQuery, setSearchQuery] = useState("");
   const [filterAssignee, setFilterAssignee] = useState<string>("all");
@@ -412,21 +414,41 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
   };
 
   // --- RENDER ---
+  const handleCreateTask = async (data: any) => {
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "x-test-user": currentUser.id
+        },
+        body: JSON.stringify({ ...data, column_id: activeColumnId })
+      });
+      if (res.ok) {
+        const saved = await res.json();
+        setTasks((prev) => {
+          const otherTasks = prev.filter(t => t.id !== saved.id);
+          return [...otherTasks, saved].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        });
+        setIsModalOpen(false);
+      }
+    } catch (error) {
+      console.error("Error creating task:", error);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-slate-50/50">
       {/* TOOLBAR */}
       <div className="px-8 pb-6 pt-2 flex flex-col md:flex-row gap-4 items-center justify-between">
-        {/* Sync Error Toast */}
-      {syncError && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] bg-red-600/90 text-white px-6 py-3 rounded-full flex items-center gap-3 backdrop-blur-md shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300">
-          <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
-          <span className="font-medium">{syncError}</span>
-          <button onClick={() => setSyncError(null)} className="hover:opacity-75 p-1 ml-2">✕</button>
-        </div>
-      )}
+        {syncError && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] bg-red-600/90 text-white px-6 py-3 rounded-full flex items-center gap-3 backdrop-blur-md shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+            <span className="font-medium">{syncError}</span>
+            <button onClick={() => setSyncError(null)} className="hover:opacity-75 p-1 ml-2">✕</button>
+          </div>
+        )}
 
-      {/* Kanban Board Container */}
-        {/* View Switcher */}
         <div className="flex bg-white/80 backdrop-blur-sm border border-gray-100 p-1.5 rounded-2xl shadow-sm self-start">
           <button 
             onClick={() => setView("kanban")}
@@ -448,57 +470,58 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
           </button>
         </div>
 
-        {/* Filters */}
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <div className="relative flex-1 md:flex-none md:w-64 group">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-indigo-500 transition-colors" size={16} />
+        <div className="flex items-center gap-4 bg-white/50 backdrop-blur-sm p-1.5 rounded-2xl border border-gray-100">
+          <div className="relative group">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-500 transition-colors" />
             <input 
               type="text" 
-              placeholder="Buscar requerimientos..."
+              placeholder="Buscar requerimientos..." 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white/80 border border-transparent border-gray-100 focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10 rounded-2xl py-2.5 pl-11 pr-4 text-xs font-bold transition-all placeholder:text-gray-300"
+              className="bg-white border border-gray-100 rounded-xl py-2 pl-9 pr-6 text-[11px] font-bold text-gray-700 focus:ring-2 focus:ring-indigo-500/20 outline-none w-64 transition-all"
             />
           </div>
+
           <button 
             onClick={() => setShowFilters(!showFilters)}
-            className={`p-2.5 rounded-2xl border transition-all ${showFilters ? "bg-indigo-50 border-indigo-200 text-indigo-600" : "bg-white border-gray-100 text-gray-400 hover:text-gray-600 shadow-sm"}`}
+            className={`p-2 rounded-xl border transition-all ${showFilters ? "bg-indigo-50 border-indigo-200 text-indigo-600 shadow-inner" : "bg-white border-gray-100 text-gray-500 hover:bg-gray-50"}`}
           >
             <Filter size={18} />
           </button>
         </div>
       </div>
 
-      {/* Advanced Filters Panel */}
       {showFilters && (
-        <div className="px-8 mb-6 animate-in slide-in-from-top-2 duration-300">
-          <div className="bg-white/80 backdrop-blur-md border border-gray-100/50 p-6 rounded-[2rem] shadow-xl shadow-indigo-500/5 flex flex-wrap gap-8">
-            <div className="flex flex-col gap-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Asignado a</label>
-              <div className="relative flex items-center">
-                <UserIcon size={14} className="absolute left-3 text-gray-300" />
+        <div className="px-8 pb-6 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="bg-white/70 backdrop-blur-md rounded-[32px] p-6 border border-white shadow-xl flex flex-wrap gap-8">
+            <div className="space-y-3">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Filtrar por Responsable</label>
+              <div className="relative">
+                <UserIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 <select 
                   value={filterAssignee}
                   onChange={(e) => setFilterAssignee(e.target.value)}
-                  className="bg-white border border-gray-100 rounded-xl py-2 pl-9 pr-6 text-[11px] font-bold text-gray-700 focus:ring-2 focus:ring-indigo-500/20 outline-none appearance-none"
+                  className="bg-white border border-gray-100 rounded-xl py-2 pl-9 pr-6 text-[11px] font-bold text-gray-700 focus:ring-2 focus:ring-indigo-500/20 outline-none appearance-none min-w-[180px]"
                 >
-                  <option value="all">Todos los miembros</option>
-                  {agencyUsers.map(u => <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>)}
+                  <option value="all">Cualquier usuario</option>
+                  {(role === 'agency' ? agencyUsers : [currentUser]).map(u => (
+                    <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
+                  ))}
                 </select>
               </div>
             </div>
 
-            <div className="flex flex-col gap-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Etiqueta</label>
-              <div className="relative flex items-center">
-                <Tag size={14} className="absolute left-3 text-gray-300" />
+            <div className="space-y-3">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Filtrar por Etiqueta</label>
+              <div className="relative">
+                <Tag size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 <select 
                   value={filterLabel}
                   onChange={(e) => setFilterLabel(e.target.value)}
-                  className="bg-white border border-gray-100 rounded-xl py-2 pl-9 pr-6 text-[11px] font-bold text-gray-700 focus:ring-2 focus:ring-indigo-500/20 outline-none appearance-none"
+                  className="bg-white border border-gray-100 rounded-xl py-2 pl-9 pr-6 text-[11px] font-bold text-gray-700 focus:ring-2 focus:ring-indigo-500/20 outline-none appearance-none min-w-[180px]"
                 >
                   <option value="all">Cualquier etiqueta</option>
-                  {allLabels.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                  {labels.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                 </select>
               </div>
             </div>
@@ -548,7 +571,6 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
                   ))}
                 </SortableContext>
                 
-                {/* New Column Button - Agency Only */}
                 {role === 'agency' && (
                   <button
                     onClick={handleAddColumn}
@@ -587,27 +609,13 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
       <CreateTaskModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
-        onSubmit={async (data) => {
-          const res = await fetch("/api/tasks", {
-            method: "POST",
-            headers: { 
-              "Content-Type": "application/json",
-              "x-test-user": currentUser.id
-            },
-            cache: "no-store",
-            body: JSON.stringify({ ...data, column_id: activeColumnId })
-          });
-          if (res.ok) {
-            const saved = await res.json();
-            setTasks(prev => [...prev.filter(t => t.id !== saved.id), saved].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
-            setIsModalOpen(false);
-          }
-        }}
+        onSubmit={handleCreateTask}
         role={role}
         columnId={activeColumnId || ""}
+        currentUser={currentUser}
         agencyUsers={agencyUsers}
-        syncError={null}
-        allLabels={allLabels}
+        availableLabels={labels}
+        onLabelCreated={(newLabel) => setLabels(prev => [...prev, newLabel])}
       />
 
       {detailTask && (
@@ -617,8 +625,10 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
           task={detailTask}
           role={role}
           currentUser={currentUser}
-          isFirstColumn={columns.sort((a,b) => a.position - b.position)[0]?.id === detailTask.column_id}
+          isFirstColumn={columns[0]?.id === detailTask.column_id}
           agencyUsers={agencyUsers}
+          availableLabels={labels}
+          onLabelCreated={(newLabel) => setLabels(prev => [...prev, newLabel])}
         />
       )}
     </div>

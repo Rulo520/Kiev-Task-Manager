@@ -20,8 +20,9 @@ interface CreateTaskModalProps {
   role: Role;
   columnId: string;
   agencyUsers: User[];
-  syncError: string | null;
-  allLabels?: Label[];
+  syncError?: string | null;
+  availableLabels?: Label[];
+  onLabelCreated?: (label: Label) => void;
 }
 
 export function CreateTaskModal({ 
@@ -31,7 +32,8 @@ export function CreateTaskModal({
   role, 
   agencyUsers,
   syncError,
-  allLabels = []
+  availableLabels = [],
+  onLabelCreated
 }: CreateTaskModalProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -45,6 +47,12 @@ export function CreateTaskModal({
   const [newAttName, setNewAttName] = useState("");
   const [newAttUrl, setNewAttUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Label Creation State
+  const [isCreatingLabel, setIsCreatingLabel] = useState(false);
+  const [newLabelName, setNewLabelName] = useState("");
+  const [newLabelColor, setNewLabelColor] = useState("#6366f1");
+  const [isSubmittingLabel, setIsSubmittingLabel] = useState(false);
 
   if (!isOpen) return null;
 
@@ -210,30 +218,91 @@ export function CreateTaskModal({
 
           {/* Labels */}
           <div className="space-y-3">
-            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2">
-              <Tag size={12} /> Etiquetas
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {allLabels.map(label => (
-                <button
-                  key={label.id}
-                  type="button"
-                  onClick={() => toggleLabel(label.id)}
-                  className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter border transition-all ${
-                    selectedLabels.includes(label.id)
-                      ? "shadow-sm scale-105"
-                      : "opacity-40 grayscale hover:opacity-100 hover:grayscale-0"
-                  }`}
-                  style={{ 
-                    backgroundColor: selectedLabels.includes(label.id) ? `${label.color}20` : "transparent", 
-                    color: label.color, 
-                    borderColor: selectedLabels.includes(label.id) ? label.color : "#e5e7eb" 
-                  }}
-                >
-                  {label.name}
-                </button>
-              ))}
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                <Tag size={12} /> Etiquetas
+              </label>
+              <button 
+                type="button"
+                onClick={() => setIsCreatingLabel(!isCreatingLabel)}
+                className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-2 py-1 rounded-md transition-colors"
+              >
+                {isCreatingLabel ? "Cancelar" : "+ Nueva Etiqueta"}
+              </button>
             </div>
+
+            {isCreatingLabel && (
+              <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-gray-100">
+                <input 
+                  type="color" 
+                  value={newLabelColor}
+                  onChange={e => setNewLabelColor(e.target.value)}
+                  className="w-8 h-8 rounded shrink-0 cursor-pointer border-0 p-0"
+                />
+                <input 
+                  type="text"
+                  placeholder="Nombre de la etiqueta"
+                  value={newLabelName}
+                  onChange={e => setNewLabelName(e.target.value)}
+                  className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 font-medium"
+                />
+                <button
+                  type="button"
+                  disabled={isSubmittingLabel || !newLabelName.trim()}
+                  onClick={async () => {
+                    if (!newLabelName.trim()) return;
+                    setIsSubmittingLabel(true);
+                    try {
+                      const res = await fetch("/api/labels", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ name: newLabelName.trim(), color: newLabelColor })
+                      });
+                      if (res.ok) {
+                        const newLabel = await res.json();
+                        onLabelCreated?.(newLabel);
+                        setSelectedLabels(prev => [...prev, newLabel.id]);
+                        setNewLabelName("");
+                        setIsCreatingLabel(false);
+                      }
+                    } catch (e) {
+                      console.error("Error creating label", e);
+                    } finally {
+                      setIsSubmittingLabel(false);
+                    }
+                  }}
+                  className="bg-indigo-600 text-white p-1.5 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                >
+                  {isSubmittingLabel ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                </button>
+              </div>
+            )}
+
+            {availableLabels.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {availableLabels.map(label => (
+                  <button
+                    key={label.id}
+                    type="button"
+                    onClick={() => toggleLabel(label.id)}
+                    className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter border transition-all ${
+                      selectedLabels.includes(label.id)
+                        ? "shadow-sm scale-105"
+                        : "opacity-40 grayscale hover:opacity-100 hover:grayscale-0"
+                    }`}
+                    style={{ 
+                      backgroundColor: selectedLabels.includes(label.id) ? `${label.color}20` : "transparent", 
+                      color: label.color, 
+                      borderColor: selectedLabels.includes(label.id) ? label.color : "#e5e7eb" 
+                    }}
+                  >
+                    {label.name}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-gray-400 italic">No hay etiquetas disponibles. Crea una nueva.</div>
+            )}
           </div>
 
           <div className="h-px bg-gray-100" />

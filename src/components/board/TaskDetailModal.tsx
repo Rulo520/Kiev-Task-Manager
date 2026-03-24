@@ -4,9 +4,9 @@ import { useState, useEffect, useCallback } from "react";
 import { 
   X, MapPin, Calendar, CheckSquare, Clock, MessageSquare, Plus, 
   CheckCircle2, Circle, Trash2, Send, Loader2, Lock, Edit2, Eye,
-  Paperclip, Link as LinkIcon
+  Paperclip, Link as LinkIcon, Tag
 } from "lucide-react";
-import { Task, ChecklistItem, Attachment, Comment, User, Role } from "@/types/kanban";
+import { Task, ChecklistItem, Attachment, Comment, User, Role, Label } from "@/types/kanban";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { createClient } from "@/lib/supabase/client";
@@ -19,9 +19,11 @@ interface TaskDetailModalProps {
   currentUser: User;
   isFirstColumn: boolean;
   agencyUsers?: User[];
+  availableLabels?: Label[];
+  onLabelCreated?: (label: Label) => void;
 }
 
-export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, currentUser, isFirstColumn, agencyUsers = [] }: TaskDetailModalProps) {
+export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, currentUser, isFirstColumn, agencyUsers = [], availableLabels = [], onLabelCreated }: TaskDetailModalProps) {
   const [task, setTask] = useState<Task>(initialTask);
   const [isLoading, setIsLoading] = useState(true);
   const [activeChat, setActiveChat] = useState<"external" | "internal">("external");
@@ -34,6 +36,12 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
   const [isEditingDesc, setIsEditingDesc] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [tempAssigneeIds, setTempAssigneeIds] = useState<string[]>(initialTask.assignees?.map(a => a.user.id) || []);
+
+  // Tag state
+  const [isCreatingLabel, setIsCreatingLabel] = useState(false);
+  const [newLabelName, setNewLabelName] = useState("");
+  const [newLabelColor, setNewLabelColor] = useState("#6366f1");
+  const [isSubmittingLabel, setIsSubmittingLabel] = useState(false);
 
   const fetchTaskDetails = useCallback(async () => {
     setIsLoading(true);
@@ -344,6 +352,113 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
                 >
                   {task.description ? renderTextWithLinks(task.description) : "Sin descripción proporcionada."}
                 </div>
+              )}
+            </div>
+
+            {/* Etiquetas */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
+                  <Tag size={16} /> Etiquetas
+                </h4>
+                {canEdit && (
+                  <button 
+                    onClick={() => setIsCreatingLabel(!isCreatingLabel)}
+                    className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-2 py-1 rounded-md transition-colors"
+                  >
+                    {isCreatingLabel ? "Cancelar" : "+ Nueva Etiqueta"}
+                  </button>
+                )}
+              </div>
+
+              {isCreatingLabel && canEdit && (
+                <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-gray-100 mb-3">
+                  <input 
+                    type="color" 
+                    value={newLabelColor}
+                    onChange={e => setNewLabelColor(e.target.value)}
+                    className="w-8 h-8 rounded shrink-0 cursor-pointer border-0 p-0"
+                  />
+                  <input 
+                    type="text"
+                    placeholder="Nombre de la etiqueta"
+                    value={newLabelName}
+                    onChange={e => setNewLabelName(e.target.value)}
+                    className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 font-medium"
+                  />
+                  <button
+                    disabled={isSubmittingLabel || !newLabelName.trim()}
+                    onClick={async () => {
+                      if (!newLabelName.trim()) return;
+                      setIsSubmittingLabel(true);
+                      try {
+                        const res = await fetch("/api/labels", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ name: newLabelName.trim(), color: newLabelColor })
+                        });
+                        if (res.ok) {
+                          const newLabel = await res.json();
+                          onLabelCreated?.(newLabel);
+                          
+                          // Also directly assign it to this task
+                          const currentLabels = task.labels?.map(l => l.label.id) || [];
+                          handleUpdateTask({ labels: [...currentLabels, newLabel.id] } as any);
+
+                          setNewLabelName("");
+                          setIsCreatingLabel(false);
+                        }
+                      } catch (e) {
+                        console.error(e);
+                      } finally {
+                        setIsSubmittingLabel(false);
+                      }
+                    }}
+                    className="bg-indigo-600 text-white p-1.5 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                  >
+                    {isSubmittingLabel ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                  </button>
+                </div>
+              )}
+
+              {availableLabels.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {availableLabels.map(label => {
+                    const isSelected = task.labels?.some(l => l.label.id === label.id);
+                    return (
+                      <button
+                        key={label.id}
+                        onClick={() => {
+                          if (!canEdit) return;
+                          const currentLabels = task.labels?.map(l => l.label.id) || [];
+                          const newLabels = isSelected
+                            ? currentLabels.filter(id => id !== label.id)
+                            : [...currentLabels, label.id];
+                          handleUpdateTask({ labels: newLabels } as any);
+                        }}
+                        disabled={!canEdit}
+                        className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter border transition-all ${
+                          isSelected
+                            ? "shadow-sm scale-105"
+                            : "opacity-40 grayscale hover:opacity-100 hover:grayscale-0"
+                        } ${!canEdit && !isSelected ? "hidden" : ""}`}
+                        style={{ 
+                          backgroundColor: isSelected ? `${label.color}20` : "transparent", 
+                          color: label.color, 
+                          borderColor: isSelected ? label.color : "#e5e7eb",
+                          cursor: canEdit ? "pointer" : "default"
+                        }}
+                      >
+                        {label.name}
+                      </button>
+                    );
+                  })}
+                  {!canEdit && (!task.labels || task.labels.length === 0) && (
+                    <div className="text-xs text-gray-400 italic">No hay etiquetas asignadas.</div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-xs text-gray-400 italic">No hay etiquetas disponibles.</div>
               )}
             </div>
 

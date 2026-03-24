@@ -97,15 +97,6 @@ export function TaskCard({
              <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border shadow-sm ${priorityColors[task.priority]}`}>
                {task.priority === "urgent" ? "🚨 Urgente" : task.priority}
              </span>
-             {task.labels && task.labels.map((item) => (
-                <span 
-                  key={item.label.id} 
-                  className="px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-tighter transition-transform hover:scale-105"
-                  style={{ backgroundColor: `${item.label.color}15`, color: item.label.color, border: `1px solid ${item.label.color}30` }}
-                >
-                  {item.label.name}
-                </span>
-             ))}
            </div>
            
            {/* Only show options if editable or agency */}
@@ -242,8 +233,16 @@ export function TaskCard({
               )}
             </div>
 
-            <div className="text-[7px] font-black text-slate-200 uppercase tracking-[0.2em]">
-               ID-{task.id.slice(0,4)}
+            <div className="flex flex-wrap justify-end gap-1 pl-2 max-w-[60%]">
+              {task.labels && task.labels.map((item) => (
+                <span 
+                  key={item.label.id} 
+                  className="px-1.5 py-0.5 rounded-[4px] text-[7px] font-black uppercase tracking-tight shadow-sm"
+                  style={{ backgroundColor: `${item.label.color}10`, color: item.label.color, border: `1px solid ${item.label.color}30` }}
+                >
+                  {item.label.name}
+                </span>
+              ))}
             </div>
           </div>
         </div>
