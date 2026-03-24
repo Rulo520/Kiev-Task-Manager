@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, Calendar, Flag, UserPlus, Loader2, AlertCircle, Tag } from "lucide-react";
+import { X, Calendar, Flag, UserPlus, Loader2, AlertCircle, Tag, Plus, Trash2, Link as LinkIcon } from "lucide-react";
 import { User, Role, Label } from "@/types/kanban";
 
 interface CreateTaskModalProps {
@@ -14,6 +14,8 @@ interface CreateTaskModalProps {
     due_date: string | null;
     assignees: string[];
     labels: string[];
+    checklists: string[];
+    attachments: { name: string, url: string }[];
   }) => void;
   role: Role;
   columnId: string;
@@ -37,6 +39,11 @@ export function CreateTaskModal({
   const [dueDate, setDueDate] = useState<string>("");
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
+  const [checklists, setChecklists] = useState<string[]>([]);
+  const [attachments, setAttachments] = useState<{ name: string, url: string }[]>([]);
+  const [newChecklistItem, setNewChecklistItem] = useState("");
+  const [newAttName, setNewAttName] = useState("");
+  const [newAttUrl, setNewAttUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
@@ -54,6 +61,8 @@ export function CreateTaskModal({
         due_date: dueDate || null,
         assignees: selectedAssignees,
         labels: selectedLabels,
+        checklists: checklists.filter(c => c.trim()),
+        attachments: attachments.filter(a => a.name.trim() && a.url.trim()),
       });
       // Reset form
       setTitle("");
@@ -62,6 +71,11 @@ export function CreateTaskModal({
       setDueDate("");
       setSelectedAssignees([]);
       setSelectedLabels([]);
+      setChecklists([]);
+      setAttachments([]);
+      setNewChecklistItem("");
+      setNewAttName("");
+      setNewAttUrl("");
     } finally {
       setIsSubmitting(false);
     }
@@ -219,6 +233,114 @@ export function CreateTaskModal({
                   {label.name}
                 </button>
               ))}
+            </div>
+          </div>
+
+          <div className="h-px bg-gray-100" />
+
+          {/* Checklist Creation */}
+          <div className="space-y-4">
+            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+              <Plus size={12} /> Lista de Pasos (Checklist)
+            </label>
+            <div className="space-y-2">
+              {checklists.map((item, idx) => (
+                <div key={idx} className="flex items-center gap-2 group bg-slate-50 p-2 rounded-xl border border-gray-100">
+                  <span className="flex-1 text-sm text-gray-700 px-2">{item}</span>
+                  <button 
+                    type="button"
+                    onClick={() => setChecklists(prev => prev.filter((_, i) => i !== idx))}
+                    className="p-1.5 text-rose-300 hover:text-rose-500 transition-colors"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+              <div className="flex gap-2">
+                <input 
+                  type="text"
+                  placeholder="Ej: Revisar documentación"
+                  value={newChecklistItem}
+                  onChange={(e) => setNewChecklistItem(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && newChecklistItem.trim()) {
+                      e.preventDefault();
+                      setChecklists(prev => [...prev, newChecklistItem.trim()]);
+                      setNewChecklistItem("");
+                    }
+                  }}
+                  className="flex-1 bg-gray-50 border-none rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 font-medium"
+                />
+                <button 
+                  type="button"
+                  onClick={() => {
+                    if (newChecklistItem.trim()) {
+                      setChecklists(prev => [...prev, newChecklistItem.trim()]);
+                      setNewChecklistItem("");
+                    }
+                  }}
+                  className="bg-indigo-50 text-indigo-600 p-2 rounded-xl hover:bg-indigo-100 transition-colors"
+                >
+                  <Plus size={20} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="h-px bg-gray-100" />
+
+          {/* Attachments Creation */}
+          <div className="space-y-4">
+            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+              <LinkIcon size={12} /> Enlaces / Adjuntos
+            </label>
+            <div className="space-y-2">
+              {attachments.map((att, idx) => (
+                <div key={idx} className="flex items-center gap-2 group bg-slate-50 p-2 rounded-xl border border-gray-100">
+                  <div className="flex-1 flex items-center gap-2 px-2 overflow-hidden">
+                    <span className="text-xs font-bold text-gray-800 shrink-0">{att.name}:</span>
+                    <span className="text-[10px] text-indigo-500 truncate">{att.url}</span>
+                  </div>
+                  <button 
+                    type="button"
+                    onClick={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}
+                    className="p-1.5 text-rose-300 hover:text-rose-500 transition-colors"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <input 
+                    type="text"
+                    placeholder="Nombre (ej: Drive)"
+                    value={newAttName}
+                    onChange={(e) => setNewAttName(e.target.value)}
+                    className="flex-1 bg-gray-50 border-none rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 font-medium"
+                  />
+                  <input 
+                    type="url"
+                    placeholder="https://..."
+                    value={newAttUrl}
+                    onChange={(e) => setNewAttUrl(e.target.value)}
+                    className="flex-[2] bg-gray-50 border-none rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 font-medium"
+                  />
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      if (newAttName.trim() && newAttUrl.trim()) {
+                        setAttachments(prev => [...prev, { name: newAttName.trim(), url: newAttUrl.trim() }]);
+                        setNewAttName("");
+                        setNewAttUrl("");
+                      }
+                    }}
+                    className="bg-indigo-50 text-indigo-600 p-2 rounded-xl hover:bg-indigo-100 transition-colors"
+                  >
+                    <Plus size={20} />
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </form>

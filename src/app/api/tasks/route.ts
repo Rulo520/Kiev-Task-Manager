@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { title, description, column_id, priority, due_date, assignees, labels } = body;
+    const { title, description, column_id, priority, due_date, assignees, labels, checklists, attachments } = body;
 
     // --- PERMISSION CHECK ---
     if (authUser.role === "client") {
@@ -78,6 +78,28 @@ export async function POST(req: Request) {
         label_id: labelId
       }));
       await supabase.from("task_labels").insert(labelRows);
+    }
+
+    // V9.5 - Insert Checklists
+    if (checklists && Array.isArray(checklists) && checklists.length > 0) {
+      const checklistRows = checklists.map((title: string, index: number) => ({
+        task_id: task.id,
+        title,
+        position: index,
+        is_completed: false
+      }));
+      await supabase.from("task_checklists").insert(checklistRows);
+    }
+
+    // V9.5 - Insert Attachments
+    if (attachments && Array.isArray(attachments) && attachments.length > 0) {
+      const attachmentRows = attachments.map((att: { name: string, url: string }) => ({
+        task_id: task.id,
+        name: att.name,
+        url: att.url,
+        type: "link"
+      }));
+      await supabase.from("task_attachments").insert(attachmentRows);
     }
 
     // Return the full task with relationships

@@ -2,17 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { 
-  X, 
-  Plus, 
-  Trash2, 
-  Link as LinkIcon, 
-  Paperclip, 
-  MessageSquare, 
-  Lock, 
-  Send,
-  Loader2,
-  CheckCircle2,
-  Circle
+  X, MapPin, Calendar, CheckSquare, Clock, MessageSquare, Plus, 
+  CheckCircle2, Circle, Trash2, Send, Loader2, Lock, Edit2, Eye,
+  Paperclip, Link as LinkIcon
 } from "lucide-react";
 import { Task, ChecklistItem, Attachment, Comment, User, Role } from "@/types/kanban";
 import { format } from "date-fns";
@@ -109,7 +101,30 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [isOpen, task.id, fetchTaskDetails]);
+  }, [initialTask.id, task.id, fetchTaskDetails]);
+
+  // V9.5 - Linkify Rendering
+  const renderTextWithLinks = (text: string) => {
+    if (!text) return text;
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    return text.split(urlRegex).map((part, i) => {
+      if (part.match(urlRegex)) {
+        return (
+          <a
+            key={i}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-indigo-600 hover:underline font-bold"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {part}
+          </a>
+        );
+      }
+      return part;
+    });
+  };
 
   if (!isOpen) return null;
 
@@ -295,22 +310,40 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
             
 
             {/* Description */}
-            <div className="space-y-3">
-              <h4 className="text-sm font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
-                Descripción
-              </h4>
-              {role === 'agency' ? (
+            {/* V9.5 - Description with Auto-link & Maximized Space */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
+                  Descripción
+                </h4>
+                {role === 'agency' && (
+                  <button 
+                    onClick={() => setIsEditingDesc(!isEditingDesc)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                      isEditingDesc ? "bg-indigo-50 text-indigo-600" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                    }`}
+                  >
+                    {isEditingDesc ? <><Eye size={12} /> Ver</> : <><Edit2 size={12} /> Editar</>}
+                  </button>
+                )}
+              </div>
+              
+              {isEditingDesc && role === 'agency' ? (
                 <textarea 
                   value={task.description || ""}
                   onChange={(e) => setTask({...task, description: e.target.value})}
                   onBlur={() => handleUpdateTask({ description: task.description })}
                   placeholder="Añadir una descripción detallada..."
-                  className="w-full text-gray-600 bg-slate-50/50 p-6 rounded-2xl border border-dashed border-gray-200 text-sm leading-relaxed focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all min-h-[120px] resize-none"
+                  className="w-full text-gray-600 bg-slate-50/50 p-6 rounded-2xl border border-dashed border-gray-200 text-sm leading-relaxed focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all min-h-[250px] resize-none overflow-y-auto"
+                  autoFocus
                 />
               ) : (
-                <p className="text-gray-600 bg-slate-50/50 p-6 rounded-2xl border border-dashed border-gray-200 text-sm leading-relaxed">
-                  {task.description || "Sin descripción proporcionada."}
-                </p>
+                <div 
+                  onClick={() => role === 'agency' && setIsEditingDesc(true)}
+                  className={`text-gray-600 bg-slate-50/50 p-6 rounded-2xl border border-dashed border-gray-200 text-sm leading-relaxed whitespace-pre-wrap break-words min-h-[200px] ${role === 'agency' ? 'cursor-pointer hover:bg-slate-100/50 transition-colors' : ''}`}
+                >
+                  {task.description ? renderTextWithLinks(task.description) : "Sin descripción proporcionada."}
+                </div>
               )}
             </div>
 
