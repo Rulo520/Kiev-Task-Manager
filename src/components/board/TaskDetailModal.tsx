@@ -41,6 +41,7 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isEditingDesc, setIsEditingDesc] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [tempAssigneeIds, setTempAssigneeIds] = useState<string[]>(initialTask.assignees?.map(a => a.user.id) || []);
 
   const fetchTaskDetails = useCallback(async () => {
     setIsLoading(true);
@@ -51,6 +52,7 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
       if (!res.ok) throw new Error("Failed to fetch task details");
       const data = await res.json();
       setTask(data);
+      setTempAssigneeIds(data.assignees?.map((a: any) => a.user.id) || []);
     } catch (error) {
       console.error(error);
     } finally {
@@ -63,6 +65,19 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
       fetchTaskDetails();
     }
   }, [isOpen, fetchTaskDetails]);
+
+  // V9.4 - Esc Key to Close
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    if (isOpen) {
+      window.addEventListener("keydown", handleEsc);
+    }
+    return () => window.removeEventListener("keydown", handleEsc);
+  }, [isOpen, onClose]);
 
   // Realtime Subscriptions
   useEffect(() => {
@@ -278,48 +293,6 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
               </div>
             </div>
             
-            {/* V9.3 - Members / Assignees (Agency Only) */}
-            {role === 'agency' && (
-              <div className="space-y-3">
-                <h4 className="text-sm font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
-                  Miembros
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {agencyUsers.map(user => {
-                    const isAssigned = task.assignees?.some(a => a.user.id === user.id);
-                    return (
-                      <button
-                        key={user.id}
-                        onClick={() => {
-                          const currentAssignees = task.assignees?.map(a => a.user.id) || [];
-                          const newAssignees = isAssigned 
-                            ? currentAssignees.filter(id => id !== user.id)
-                            : [...currentAssignees, user.id];
-                          handleUpdateTask({ assignees: newAssignees as any });
-                        }}
-                        className={`group relative flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all ${
-                          isAssigned 
-                            ? "bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100" 
-                            : "bg-white border-gray-100 text-gray-400 hover:border-indigo-200 hover:text-indigo-600"
-                        }`}
-                        title={user.first_name + " " + user.last_name}
-                      >
-                        <div className="h-5 w-5 rounded-lg overflow-hidden border border-white/20">
-                          {user.profile_pic ? (
-                            <img src={user.profile_pic} alt="" className="h-full w-full object-cover" />
-                          ) : (
-                            <div className={`h-full w-full flex items-center justify-center text-[8px] font-black ${isAssigned ? "text-white" : "text-indigo-600 bg-indigo-50"}`}>
-                              {user.first_name[0]}{user.last_name[0]}
-                            </div>
-                          )}
-                        </div>
-                        <span className="text-[10px] font-black uppercase tracking-tight">{user.first_name}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
             {/* Description */}
             <div className="space-y-3">
@@ -469,6 +442,64 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
                 </form>
               )}
             </div>
+            {/* V9.4 - Members / Assignees (Agency Only) - Moved to bottom and batch-saved */}
+            {role === 'agency' && (
+              <div className="pt-8 border-t border-gray-100 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
+                    Miembros Asignados
+                  </h4>
+                  <button
+                    onClick={() => handleUpdateTask({ assignees: tempAssigneeIds as any })}
+                    disabled={isSyncing}
+                    className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                      JSON.stringify(tempAssigneeIds.sort()) !== JSON.stringify((task.assignees?.map(a => a.user.id) || []).sort())
+                        ? "bg-indigo-600 text-white shadow-lg shadow-indigo-100 hover:scale-105 active:scale-95"
+                        : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                    }`}
+                  >
+                    {isSyncing ? "Guardando..." : "Guardar Miembros"}
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {agencyUsers.map(user => {
+                    const isSelected = tempAssigneeIds.includes(user.id);
+                    const isActuallyAssigned = task.assignees?.some(a => a.user.id === user.id);
+                    
+                    return (
+                      <button
+                        key={user.id}
+                        onClick={() => {
+                          setTempAssigneeIds(prev => 
+                            isSelected ? prev.filter(id => id !== user.id) : [...prev, user.id]
+                          );
+                        }}
+                        className={`group relative flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all ${
+                          isSelected 
+                            ? "bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100" 
+                            : "bg-white border-gray-100 text-gray-400 hover:border-indigo-200 hover:text-indigo-600"
+                        }`}
+                        title={user.first_name + " " + user.last_name}
+                      >
+                        <div className="h-5 w-5 rounded-lg overflow-hidden border border-white/20">
+                          {user.profile_pic ? (
+                            <img src={user.profile_pic} alt="" className="h-full w-full object-cover" />
+                          ) : (
+                            <div className={`h-full w-full flex items-center justify-center text-[8px] font-black ${isSelected ? "text-white" : "text-indigo-600 bg-indigo-50"}`}>
+                              {user.first_name[0]}{user.last_name[0]}
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-[10px] font-black uppercase tracking-tight">{user.first_name}</span>
+                        {isSelected && !isActuallyAssigned && (
+                          <span className="absolute -top-1 -right-1 w-2 h-2 bg-amber-400 rounded-full border border-white animate-pulse" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
