@@ -129,7 +129,7 @@ export function CreateTaskModal({
             />
             <textarea
               placeholder="Agrega una descripción más detallada..."
-              className="w-full text-gray-600 placeholder:text-gray-300 border-none focus:ring-0 p-0 min-h-[100px] resize-none"
+              className="w-full text-gray-600 placeholder:text-gray-300 border-none focus:ring-0 p-0 min-h-[150px] resize-none"
               value={description}
               onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDescription(e.target.value)}
             />

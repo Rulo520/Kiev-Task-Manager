@@ -334,13 +334,13 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
                   onChange={(e) => setTask({...task, description: e.target.value})}
                   onBlur={() => handleUpdateTask({ description: task.description })}
                   placeholder="Añadir una descripción detallada..."
-                  className="w-full text-gray-600 bg-slate-50/50 p-6 rounded-2xl border border-dashed border-gray-200 text-sm leading-relaxed focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all min-h-[180px] resize-none overflow-y-auto"
+                  className="w-full text-gray-600 bg-slate-50/50 p-6 rounded-2xl border border-dashed border-gray-200 text-sm leading-relaxed focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all min-h-[150px] resize-none overflow-y-auto"
                   autoFocus
                 />
               ) : (
                 <div 
                   onClick={() => role === 'agency' && setIsEditingDesc(true)}
-                  className={`text-gray-600 bg-slate-50/50 p-6 rounded-2xl border border-dashed border-gray-200 text-sm leading-relaxed whitespace-pre-wrap break-words min-h-[160px] ${role === 'agency' ? 'cursor-pointer hover:bg-slate-100/50 transition-colors' : ''}`}
+                  className={`text-gray-600 bg-slate-50/50 p-6 rounded-2xl border border-dashed border-gray-200 text-sm leading-relaxed whitespace-pre-wrap break-words min-h-[150px] ${role === 'agency' ? 'cursor-pointer hover:bg-slate-100/50 transition-colors' : ''}`}
                 >
                   {task.description ? renderTextWithLinks(task.description) : "Sin descripción proporcionada."}
                 </div>
