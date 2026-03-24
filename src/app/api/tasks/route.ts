@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { getAuthUser, GHLUser } from "@/lib/auth";
 
 import { getAdminClient } from "@/lib/supabase/admin";
+import { sendTaskNotification } from "@/lib/notifications";
 
 export async function POST(req: Request) {
   try {
@@ -148,7 +149,7 @@ export async function PUT(req: Request) {
     if (!id) return NextResponse.json({ error: "Task ID required" }, { status: 400 });
 
     // --- PERMISSION CHECK ---
-    const { data: existingTask } = await supabase.from("tasks").select("created_by, column_id").eq("id", id).single();
+    const { data: existingTask } = await supabase.from("tasks").select("title, created_by, column_id, assignees:task_assignees(user_id), creator:users!tasks_creator_id_fkey(email, first_name)").eq("id", id).single();
     if (!existingTask) return NextResponse.json({ error: "Task not found" }, { status: 404 });
 
     if (authUser.role === "client") {
@@ -177,6 +178,40 @@ export async function PUT(req: Request) {
 
     if (error) throw error;
 
+    // --- NOTIFICATIONS: Column Movement ---
+    if (column_id && column_id !== existingTask.column_id) {
+      try {
+        const { data: existingCol } = await supabase.from("columns").select("location_id").eq("id", existingTask.column_id).single();
+        if (existingCol?.location_id) {
+          const { data: columns } = await supabase.from("columns").select("id").eq("location_id", existingCol.location_id).order("position");
+          if (columns && columns.length > 0) {
+            const firstColumnId = columns[0].id;
+            const lastColumnId = columns[columns.length - 1].id;
+            
+            const creatorData = Array.isArray(existingTask.creator) ? existingTask.creator[0] : existingTask.creator;
+
+            if (existingTask.column_id === firstColumnId && column_id !== firstColumnId) {
+              await sendTaskNotification({
+                notificationType: "MOVED_OUT_OF_FIRST_STAGE",
+                task: { id, title: title || existingTask.title },
+                recipientEmail: creatorData?.email,
+                recipientName: creatorData?.first_name || "Cliente"
+              });
+            } else if (column_id === lastColumnId && existingTask.column_id !== lastColumnId) {
+              await sendTaskNotification({
+                notificationType: "REACHED_LAST_STAGE",
+                task: { id, title: title || existingTask.title },
+                recipientEmail: creatorData?.email,
+                recipientName: creatorData?.first_name || "Cliente"
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error sending movement notification:", err);
+      }
+    }
+
     // V9.3 - Handle Assignee Updates (Agency Only/Privileged)
     const { assignees } = body;
     if (assignees && Array.isArray(assignees)) {
@@ -188,6 +223,26 @@ export async function PUT(req: Request) {
           user_id: userId
         }));
         await supabase.from("task_assignees").insert(assigneeRows);
+
+        // --- NOTIFICATIONS: New Assignees ---
+        try {
+          const previousAssigneeIds = existingTask.assignees?.map((a: any) => a.user_id) || [];
+          const newAssigneeIds = assignees.filter((userId: string) => !previousAssigneeIds.includes(userId));
+          
+          if (newAssigneeIds.length > 0) {
+            const { data: newUsers } = await supabase.from("users").select("id, email, first_name").in("id", newAssigneeIds);
+            newUsers?.forEach(user => {
+              sendTaskNotification({
+                notificationType: "ASSIGNED",
+                task: { id, title: title || existingTask.title },
+                recipientEmail: user.email,
+                recipientName: user.first_name || "Usuario"
+              });
+            });
+          }
+        } catch (err) {
+          console.error("Error sending assignee notification:", err);
+        }
       }
     }
 
