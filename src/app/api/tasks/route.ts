@@ -149,8 +149,15 @@ export async function PUT(req: Request) {
     if (!id) return NextResponse.json({ error: "Task ID required" }, { status: 400 });
 
     // --- PERMISSION CHECK ---
-    const { data: existingTask } = await supabase.from("tasks").select("title, created_by, column_id, assignees:task_assignees(user_id), creator:users!tasks_creator_id_fkey(email, first_name)").eq("id", id).single();
+    const { data: existingTask } = await supabase.from("tasks").select("title, created_by, column_id, assignees:task_assignees(user_id)").eq("id", id).single();
     if (!existingTask) return NextResponse.json({ error: "Task not found" }, { status: 404 });
+
+    // Fetch creator explicitly to avoid Foreign Key hint crashes
+    let creatorData = null;
+    if (existingTask.created_by) {
+      const { data: creator } = await supabase.from("users").select("email, first_name").eq("id", existingTask.created_by).single();
+      creatorData = creator;
+    }
 
     if (authUser.role === "client") {
       // 1. Must be the owner
@@ -171,12 +178,14 @@ export async function PUT(req: Request) {
     if (priority) updateData.priority = priority;
     if (due_date !== undefined) updateData.due_date = due_date;
 
-    const { error } = await supabase
-      .from("tasks")
-      .update(updateData)
-      .eq("id", id);
+    if (Object.keys(updateData).length > 0) {
+      const { error } = await supabase
+        .from("tasks")
+        .update(updateData)
+        .eq("id", id);
 
-    if (error) throw error;
+      if (error) throw error;
+    }
 
     // --- NOTIFICATIONS: Column Movement ---
     if (column_id && column_id !== existingTask.column_id) {
@@ -187,8 +196,6 @@ export async function PUT(req: Request) {
           if (columns && columns.length > 0) {
             const firstColumnId = columns[0].id;
             const lastColumnId = columns[columns.length - 1].id;
-            
-            const creatorData = Array.isArray(existingTask.creator) ? existingTask.creator[0] : existingTask.creator;
 
             if (existingTask.column_id === firstColumnId && column_id !== firstColumnId) {
               await sendTaskNotification({
