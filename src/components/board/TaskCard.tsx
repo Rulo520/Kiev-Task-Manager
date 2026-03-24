@@ -14,6 +14,8 @@ interface TaskCardProps {
   onDelete?: () => void;
   role?: Role;
   isEditable?: boolean;
+  isLastColumn?: boolean;
+  onToggleComplete?: (task: Task) => void;
 }
 
 export function TaskCard({ 
@@ -21,7 +23,9 @@ export function TaskCard({
   onClick, 
   onDelete, 
   role = 'agency', 
-  isEditable = true 
+  isEditable = true,
+  isLastColumn = false,
+  onToggleComplete
 }: TaskCardProps) {
   const {
     attributes,
@@ -111,11 +115,27 @@ export function TaskCard({
 
         {/* Title & Description */}
         <div className="space-y-1">
-          <div className="flex items-start gap-2">
-            <h4 className="font-bold text-gray-800 leading-[1.3] text-[13px] group-hover:text-indigo-600 transition-colors">
+          <div className="flex items-start gap-2 group/title">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isEditable) onToggleComplete?.(task);
+              }}
+              className={`mt-0.5 min-w-4 min-h-4 w-4 h-4 rounded-md border flex items-center justify-center transition-all duration-200 ${
+                isLastColumn 
+                  ? 'bg-emerald-500 border-emerald-500 shadow-sm shadow-emerald-500/20' 
+                  : 'bg-white border-gray-300 hover:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20'
+              } ${!isEditable ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+              title={isLastColumn ? "Marcar como incompleta" : "Marcar como completada"}
+            >
+              {isLastColumn && <CheckSquare size={10} strokeWidth={4} className="text-white" />}
+            </button>
+            <h4 className={`font-bold text-gray-800 leading-[1.3] text-[13px] group-hover:text-indigo-600 transition-colors ${
+              isLastColumn ? "line-through text-gray-400 opacity-60 decoration-emerald-500/50 decoration-2" : ""
+            }`}>
               {task.title}
             </h4>
-            {!isEditable && role === 'client' && <span className="text-[8px] bg-slate-50 text-slate-400 px-1 rounded uppercase font-black">Read Only</span>}
+            {!isEditable && role === 'client' && <span className="text-[8px] bg-slate-50 text-slate-400 px-1 rounded uppercase font-black mt-1">Read Only</span>}
           </div>
           {task.description && (
             <p className="text-[11px] text-gray-400 line-clamp-2 font-medium leading-relaxed">

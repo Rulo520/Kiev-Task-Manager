@@ -144,7 +144,7 @@ export async function PUT(req: Request) {
     if (!authUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json();
-    const { id, column_id, position, title, description, priority, due_date, labels } = body;
+    const { id, column_id, position, title, description, priority, due_date, labels, previous_column_id } = body;
 
     if (!id) return NextResponse.json({ error: "Task ID required" }, { status: 400 });
 
@@ -177,6 +177,7 @@ export async function PUT(req: Request) {
     if (description !== undefined) updateData.description = description;
     if (priority) updateData.priority = priority;
     if (due_date !== undefined) updateData.due_date = due_date;
+    if (previous_column_id !== undefined) updateData.previous_column_id = previous_column_id;
 
     if (Object.keys(updateData).length > 0) {
       const { error } = await supabase

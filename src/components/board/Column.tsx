@@ -15,6 +15,8 @@ interface ColumnProps {
   onDeleteColumn?: (id: string) => void;
   role?: Role;
   isFirstColumn?: boolean;
+  isLastColumn?: boolean;
+  onToggleComplete?: (task: Task) => void;
 }
 
 export function Column({ 
@@ -26,7 +28,9 @@ export function Column({
   onUpdateColumn,
   onDeleteColumn,
   role = 'agency',
-  isFirstColumn = false
+  isFirstColumn = false,
+  isLastColumn = false,
+  onToggleComplete
 }: ColumnProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
@@ -189,6 +193,8 @@ export function Column({
               onDelete={() => onDeleteTask(task.id)}
               role={role}
               isEditable={role === 'agency' || (role === 'client' && isFirstColumn)}
+              isLastColumn={isLastColumn}
+              onToggleComplete={onToggleComplete}
             />
           ))}
         </SortableContext>

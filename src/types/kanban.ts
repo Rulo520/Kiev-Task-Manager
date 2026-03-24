@@ -58,6 +58,7 @@ export type Task = {
   title: string;
   description: string | null;
   column_id: string;
+  previous_column_id?: string | null;
   position: number;
   created_by: string;
   location_id: string | null;

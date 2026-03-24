@@ -437,6 +437,46 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
     }
   };
 
+  const handleToggleComplete = async (task: Task) => {
+    if (!columns || columns.length === 0) return;
+    const sortedCols = [...columns].sort((a,b) => a.position - b.position);
+    const lastColId = sortedCols[sortedCols.length - 1].id;
+    const firstColId = sortedCols[0].id;
+    const isCurrentlyCompleted = task.column_id === lastColId;
+    
+    let newColumnId = "";
+    let previousColumnId = null;
+
+    if (isCurrentlyCompleted) {
+      newColumnId = task.previous_column_id || firstColId;
+      previousColumnId = null;
+    } else {
+      newColumnId = lastColId;
+      previousColumnId = task.column_id;
+    }
+
+    const updatedTask = { ...task, column_id: newColumnId, previous_column_id: previousColumnId };
+    setTasks(prev => prev.map(t => t.id === task.id ? updatedTask : t));
+    if (detailTask && detailTask.id === task.id) setDetailTask(updatedTask);
+    
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "x-test-user": currentUser.id },
+        body: JSON.stringify({ id: task.id, column_id: newColumnId, previous_column_id: previousColumnId })
+      });
+      if (res.ok) {
+        const saved = await res.json();
+        setTasks(prev => prev.map(t => t.id === saved.id ? saved : t).sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+        if (detailTask && detailTask.id === saved.id) setDetailTask(saved);
+      }
+    } catch(err) {
+      console.error("Error toggling completion:", err);
+      setTasks(prev => prev.map(t => t.id === task.id ? task : t));
+      if (detailTask && detailTask.id === task.id) setDetailTask(task);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-slate-50/50">
       {/* TOOLBAR */}
@@ -567,6 +607,8 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
                       onDeleteColumn={handleDeleteColumn}
                       role={role}
                       isFirstColumn={index === 0}
+                      isLastColumn={index === columns.length - 1}
+                      onToggleComplete={handleToggleComplete}
                     />
                   ))}
                 </SortableContext>
@@ -625,6 +667,8 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
           role={role}
           currentUser={currentUser}
           isFirstColumn={columns[0]?.id === detailTask.column_id}
+          isLastColumn={columns[columns.length - 1]?.id === detailTask.column_id}
+          onToggleComplete={handleToggleComplete}
           agencyUsers={agencyUsers}
           availableLabels={labels}
           onLabelCreated={(newLabel) => setLabels(prev => [...prev, newLabel])}

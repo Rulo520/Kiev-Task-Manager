@@ -21,9 +21,11 @@ interface TaskDetailModalProps {
   agencyUsers?: User[];
   availableLabels?: Label[];
   onLabelCreated?: (label: Label) => void;
+  isLastColumn?: boolean;
+  onToggleComplete?: (task: Task) => void;
 }
 
-export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, currentUser, isFirstColumn, agencyUsers = [], availableLabels = [], onLabelCreated }: TaskDetailModalProps) {
+export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, currentUser, isFirstColumn, agencyUsers = [], availableLabels = [], onLabelCreated, isLastColumn = false, onToggleComplete }: TaskDetailModalProps) {
   const [task, setTask] = useState<Task>(initialTask);
   const [isLoading, setIsLoading] = useState(true);
   const [activeChat, setActiveChat] = useState<"external" | "internal">("external");
@@ -279,20 +281,37 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
               <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-slate-100 text-slate-500 mb-3 inline-block`}>
                 Tarea Detalle {isSyncing && "• Guardando..."}
               </span>
-              
-              {role === 'agency' ? (
-                <div className="group relative">
-                  <input 
-                    type="text"
-                    value={task.title}
-                    onChange={(e) => setTask({...task, title: e.target.value})}
-                    onBlur={() => handleUpdateTask({ title: task.title })}
-                    className="w-full text-3xl font-black text-gray-800 leading-tight bg-transparent border-none focus:ring-2 focus:ring-indigo-500/10 rounded-xl px-0 hover:bg-slate-50 transition-all font-sans italic tracking-tighter"
-                  />
+              {/* Row: Checkbox + Title */}
+              <div className="flex items-start gap-4">
+                <button
+                  type="button"
+                  onClick={() => onToggleComplete?.(task)}
+                  className={`mt-2 min-w-8 min-h-8 w-8 h-8 rounded-lg border-2 flex items-center justify-center transition-all duration-200 cursor-pointer shadow-sm ${
+                    isLastColumn 
+                      ? 'bg-emerald-500 border-emerald-500 text-white shadow-emerald-500/20' 
+                      : 'bg-white border-gray-300 hover:border-emerald-400 focus:ring-4 focus:ring-emerald-500/20 text-transparent hover:text-emerald-100'
+                  }`}
+                  title={isLastColumn ? "Marcar como incompleta" : "Marcar como completada"}
+                >
+                  <CheckSquare size={20} strokeWidth={3} className={isLastColumn ? "text-white" : "opacity-0 hover:opacity-100"} />
+                </button>
+
+                <div className="flex-1">
+                  {role === 'agency' ? (
+                    <div className="group relative">
+                      <input 
+                        type="text"
+                        value={task.title}
+                        onChange={(e) => setTask({...task, title: e.target.value})}
+                        onBlur={() => handleUpdateTask({ title: task.title })}
+                        className={`w-full text-3xl font-black text-gray-800 leading-tight bg-transparent border-none focus:ring-2 focus:ring-indigo-500/10 rounded-xl px-0 hover:bg-slate-50 transition-all font-sans tracking-tighter ${isLastColumn ? 'line-through text-gray-400 opacity-60 decoration-emerald-500/50 decoration-2' : ''}`}
+                      />
+                    </div>
+                  ) : (
+                    <h2 className={`text-3xl font-black text-gray-800 leading-tight font-sans tracking-tighter mt-1.5 ${isLastColumn ? 'line-through text-gray-400 opacity-60 decoration-emerald-500/50 decoration-2' : ''}`}>{task.title}</h2>
+                  )}
                 </div>
-              ) : (
-                <h2 className="text-3xl font-black text-gray-800 leading-tight font-sans italic tracking-tighter">{task.title}</h2>
-              )}
+              </div>
 
               <div className="flex flex-wrap items-center gap-4 mt-4 text-xs font-medium text-gray-400">
                 <div className="flex items-center gap-1.5">
