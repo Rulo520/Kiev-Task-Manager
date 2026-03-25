@@ -85,7 +85,7 @@ async function fetchGHLContact(ghlContactId: string): Promise<GHLUser | null> {
 //   5. Returns null if GHL doesn't recognize the ID either
 // ------------------------------------------------------------------
 
-export async function resolveUser(ghlId: string): Promise<GHLUser | null> {
+export async function resolveUser(ghlId: string, preferredRole?: "agency" | "client"): Promise<GHLUser | null> {
   if (!ghlId) return null;
 
   const supabase = getAdminClient();
@@ -97,7 +97,7 @@ export async function resolveUser(ghlId: string): Promise<GHLUser | null> {
     .or(`id.eq."${ghlId}",ghl_user_id.eq."${ghlId}",email.eq."${ghlId}"`)
     .maybeSingle();
 
-  if (existingUser) {
+  if (existingUser && (!preferredRole || existingUser.role === preferredRole)) {
     // Silently refresh stale records (older than 24h) without blocking the render
     const lastUpdated = new Date(existingUser.updated_at || 0).getTime();
     const isStale = Date.now() - lastUpdated > 24 * 60 * 60 * 1000;
@@ -116,12 +116,15 @@ export async function resolveUser(ghlId: string): Promise<GHLUser | null> {
     return null;
   }
 
-  // 3. Try as agency staff first
-  let ghlProfile = await fetchGHLStaffUser(ghlId);
+  // 3. Try IDs based on preferred role first
+  let ghlProfile: GHLUser | null = null;
 
-  // 4. Fall back to contact if not found as staff
-  if (!ghlProfile) {
+  if (preferredRole === "client") {
     ghlProfile = await fetchGHLContact(ghlId);
+    if (!ghlProfile) ghlProfile = await fetchGHLStaffUser(ghlId);
+  } else {
+    ghlProfile = await fetchGHLStaffUser(ghlId);
+    if (!ghlProfile) ghlProfile = await fetchGHLContact(ghlId);
   }
 
   if (!ghlProfile) {

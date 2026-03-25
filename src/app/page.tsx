@@ -75,7 +75,8 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
 
   // GHL Auto-Sync: If identity is present but unknown, resolve via GHL API
   if (!currentUser && ghlIdentity) {
-    const resolved = await resolveUser(ghlIdentity);
+    const preferredRole = ghlContactId ? "client" : "agency";
+    const resolved = await resolveUser(ghlIdentity, preferredRole);
     if (resolved) {
       // Cast the resolved GHLUser shape to our internal User type
       currentUser = resolved as unknown as User;
