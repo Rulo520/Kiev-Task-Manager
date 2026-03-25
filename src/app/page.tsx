@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Column, Task, User, Role } from "@/types/kanban";
 import { cookies } from "next/headers";
 import { ExternalLink } from "lucide-react";
+import { resolveUser } from "@/lib/ghl/resolveUser";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -45,28 +46,43 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
   // V9.2 - Filter columns for clients
   const finalRole = (searchParams?.role as Role) || "client"; // Need to calculate role earlier or pass it
 
-  // 2. IDENTITY RESOLUTION (V7.0 Braced)
+  // 2. IDENTITY RESOLUTION (V8.0 — GHL Auto-Sync)
   const cookieStore = await cookies();
   const sessionUserId = cookieStore.get("kiev_user_id")?.value;
   
   // Standard GHL identities sent via URL (Custom menu links use these casings)
-  const ghlIdentity = (
-    (searchParams?.userId as string) || 
-    (searchParams?.user_id as string) || 
+  // contact_id / contactId → client; user_id / userId → agency staff
+  const ghlContactId = (
     (searchParams?.contactId as string) ||
     (searchParams?.contact_id as string)
   );
+  const ghlUserId = (
+    (searchParams?.userId as string) ||
+    (searchParams?.user_id as string)
+  );
+  // Contact takes priority if both are present (e.g. a client opening the board)
+  const ghlIdentity = ghlContactId || ghlUserId;
 
-  // V7.0 Rule: IF we have a GHL Identity in the URL, it MUST override the session cookie (prevents zombie sessions)
+  // V8.0: GHL identity in URL always overrides session cookie
   const requestedUserId = ghlIdentity || sessionUserId;
   
-  let currentUser = (dbUsers || []).find(u => 
-    u.id === requestedUserId || 
-    u.ghl_user_id === requestedUserId || 
+  // Fast path: look up already-known users from the DB batch we already fetched
+  let currentUser = (dbUsers || []).find((u) =>
+    u.id === requestedUserId ||
+    u.ghl_user_id === requestedUserId ||
     u.email === requestedUserId
-  );
+  ) as User | undefined;
 
-  // Gatekeeper: Only authorize if user exists OR debug is active
+  // GHL Auto-Sync: If identity is present but unknown, resolve via GHL API
+  if (!currentUser && ghlIdentity) {
+    const resolved = await resolveUser(ghlIdentity);
+    if (resolved) {
+      // Cast the resolved GHLUser shape to our internal User type
+      currentUser = resolved as unknown as User;
+    }
+  }
+
+  // Gatekeeper: Only authorize if user is known OR debug is active
   const isAuthorized = !!currentUser || isDebug;
 
   if (!isAuthorized) {
@@ -78,9 +94,9 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
     );
   }
 
-  // V7.0 Safety: If isDebug but no user found, we strictly DONT fallback to Rulo unless explicitly told (Admin safety)
+  // Debug safety: fallback to Rulo only in debug mode with no valid identity
   if (!currentUser && isDebug) {
-    currentUser = (dbUsers || []).find(u => u.first_name === "Rulo");
+    currentUser = (dbUsers || []).find(u => u.first_name === "Rulo") as User | undefined;
   }
 
   const finalUser = currentUser || {
