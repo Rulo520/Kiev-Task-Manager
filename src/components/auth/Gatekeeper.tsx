@@ -7,9 +7,12 @@ import { APP_VERSION, APP_PROTOCOL, APP_SAFETY, APP_NAME } from "@/constants/ver
 interface GatekeeperProps {
   debug?: boolean;
   isIframe?: boolean;
+  ghlId?: string;
+  sessionUserId?: string;
+  searchParams?: any;
 }
 
-export function Gatekeeper({ debug, isIframe }: GatekeeperProps) {
+export function Gatekeeper({ debug, isIframe, ghlId, sessionUserId, searchParams }: GatekeeperProps) {
   const [isDetecting, setIsDetecting] = useState(true);
   const [isDenied, setIsDenied] = useState(false);
   const [showHardRefresh, setShowHardRefresh] = useState(false);
@@ -145,6 +148,24 @@ export function Gatekeeper({ debug, isIframe }: GatekeeperProps) {
                 <p className="text-[7px] text-gray-300 font-bold uppercase">
                   Cross-Domain Sandbox Bridge
                 </p>
+
+                {debug && (
+                  <div className="mt-8 p-6 bg-slate-900 text-left rounded-3xl border border-white/10 font-mono text-[9px] w-full shadow-2xl overflow-hidden">
+                    <p className="text-indigo-400 font-black mb-3 uppercase tracking-widest flex items-center gap-2">
+                       <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" /> Diagnostics
+                    </p>
+                    <div className="space-y-1.5 text-slate-300">
+                      <p><span className="text-slate-500">GHL_ID:</span> {ghlId || "NONE"}</p>
+                      <p><span className="text-slate-500">COOKIE_ID:</span> {sessionUserId || "NONE"}</p>
+                      <p className="break-all pt-2 border-t border-white/5 mt-2">
+                        <span className="text-slate-500">PARAMS:</span> {JSON.stringify(searchParams)}
+                      </p>
+                      <p className="pt-2 border-t border-white/5 mt-2 text-rose-400 font-bold">
+                        VERSIÓN: V12.1 (Debug Fix)
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

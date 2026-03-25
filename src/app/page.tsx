@@ -90,6 +90,9 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
       <Gatekeeper 
         debug={!!isDebug} 
         isIframe={true} 
+        ghlId={ghlIdentity}
+        sessionUserId={sessionUserId}
+        searchParams={searchParams}
       />
     );
   }
