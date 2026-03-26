@@ -364,7 +364,7 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
                 </button>
 
                 <div className="flex-1">
-                  {role === 'agency' ? (
+                  {canEdit ? (
                     <div className="group relative">
                       <input 
                         type="text"
@@ -396,7 +396,7 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
                 <span>•</span>
                 <div>{format(new Date(task.created_at), "dd MMMM yyyy", { locale: es })}</div>
                 
-                {role === 'agency' && (
+                {canEdit && (
                   <div className="flex items-center gap-2">
                     <span>•</span>
                     <input 
@@ -424,7 +424,7 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
                 <h4 className="text-sm font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
                   Descripción
                 </h4>
-                {role === 'agency' && (
+                {canEdit && (
                   <button 
                     onClick={() => setIsEditingDesc(!isEditingDesc)}
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
@@ -436,7 +436,7 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
                 )}
               </div>
               
-              {isEditingDesc && role === 'agency' ? (
+              {isEditingDesc && canEdit ? (
                 <textarea 
                   value={task.description || ""}
                   onChange={(e) => setTask({ ...task, description: e.target.value })}
@@ -446,8 +446,8 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
                 />
               ) : (
                 <div 
-                  onClick={() => role === 'agency' && setIsEditingDesc(true)}
-                  className={`text-gray-600 bg-slate-50/50 p-6 rounded-2xl border border-dashed border-gray-200 text-sm leading-relaxed whitespace-pre-wrap break-words min-h-[150px] ${role === 'agency' ? 'cursor-pointer hover:bg-slate-100/50 transition-colors' : ''}`}
+                  onClick={() => canEdit && setIsEditingDesc(true)}
+                  className={`text-gray-600 bg-slate-50/50 p-6 rounded-2xl border border-dashed border-gray-200 text-sm leading-relaxed whitespace-pre-wrap break-words min-h-[150px] ${canEdit ? 'cursor-pointer hover:bg-slate-100/50 transition-colors' : ''}`}
                 >
                   {task.description ? renderTextWithLinks(task.description) : "Sin descripción proporcionada."}
                 </div>
@@ -689,7 +689,7 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
               )}
             </div>
             {/* V9.4 - Members / Assignees (Agency Only) - Moved to bottom and batch-saved */}
-            {role === 'agency' && (
+            {canEdit && (
               <div className="pt-8 border-t border-gray-100 space-y-4">
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
