@@ -1,5 +1,5 @@
 export const APP_NAME = "Kiev Platform";
-export const APP_VERSION = "V16.1";
+export const APP_VERSION = "V16.2";
 /*
   V13.1 - Handshake & Clean URL
   V13.2 - In-App Notifications Base
@@ -18,6 +18,7 @@ export const APP_VERSION = "V16.1";
   V15.2 - Keyboard Navigation (ESC to Close Filters)
   V16.0 - Enhanced Calendar (Day/Week/Month + Persistence)
   V16.1 - Bug fixes (Private Notifications & Calendar Interaction)
+  V16.2 - Calendar Sorting (By Deadline)
 */
 
 

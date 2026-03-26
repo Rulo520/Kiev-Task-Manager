@@ -64,7 +64,13 @@ export function CalendarView({ tasks, onTaskClick }: CalendarViewProps) {
   };
 
   const getTasksForDay = (day: Date) => {
-    return tasks.filter(task => task.due_date && isSameDay(new Date(task.due_date), day));
+    return tasks
+      .filter(task => task.due_date && isSameDay(new Date(task.due_date), day))
+      .sort((a, b) => {
+        const dateA = new Date(a.due_date!).getTime();
+        const dateB = new Date(b.due_date!).getTime();
+        return dateA - dateB;
+      });
   };
 
   const renderTask = (task: Task, isCompact = true) => (
