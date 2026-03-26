@@ -823,6 +823,9 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
           agencyUsers={agencyUsers}
           availableLabels={labels}
           onLabelCreated={(newLabel) => setLabels(prev => [...prev, newLabel])}
+          onUpdateTask={(updatedTask) => {
+            setTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
+          }}
         />
       )}
     </div>

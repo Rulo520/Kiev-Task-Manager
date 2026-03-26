@@ -23,9 +23,10 @@ interface TaskDetailModalProps {
   onLabelCreated?: (label: Label) => void;
   isLastColumn?: boolean;
   onToggleComplete?: (task: Task) => void;
+  onUpdateTask?: (task: Task) => void;
 }
 
-export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, currentUser, isFirstColumn, agencyUsers = [], availableLabels = [], onLabelCreated, isLastColumn = false, onToggleComplete }: TaskDetailModalProps) {
+export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, currentUser, isFirstColumn, agencyUsers = [], availableLabels = [], onLabelCreated, isLastColumn = false, onToggleComplete, onUpdateTask }: TaskDetailModalProps) {
   const [task, setTask] = useState<Task>(initialTask);
   const [isLoading, setIsLoading] = useState(true);
   const [activeChat, setActiveChat] = useState<"external" | "internal">("external");
@@ -254,6 +255,7 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
       if (res.ok) {
         const updated = await res.json();
         setTask(updated);
+        onUpdateTask?.(updated);
       }
     } catch (err) { console.error(err); }
     finally { setIsSyncing(false); }
