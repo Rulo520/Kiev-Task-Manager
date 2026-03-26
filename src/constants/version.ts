@@ -1,5 +1,5 @@
 export const APP_NAME = "Kiev Platform";
-export const APP_VERSION = "V15.1";
+export const APP_VERSION = "V15.2";
 /*
   V13.1 - Handshake & Clean URL
   V13.2 - In-App Notifications Base
@@ -15,6 +15,7 @@ export const APP_VERSION = "V15.1";
   V14.6 - Differentiated Message Counts (Public/Internal Icons)
   V15.0 - Visual Overhaul (High Contrast & Compact Layout)
   V15.1 - Visual Overhaul (Light Theme + High Density)
+  V15.2 - Keyboard Navigation (ESC to Close Filters)
 */
 
 

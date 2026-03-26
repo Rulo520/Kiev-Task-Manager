@@ -143,6 +143,9 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
       // Ignore if typing in an input/textarea
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
+      if (e.key === 'Escape') {
+        setShowFilters(false);
+      }
       if (e.key.toLowerCase() === 'f') {
         setShowFilters(prev => !prev);
       }
