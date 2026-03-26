@@ -470,7 +470,7 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
                 )}
               </div>
 
-              {isCreatingLabel && canEdit && (
+              {isCreatingLabel && role === 'agency' && (
                 <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-gray-100 mb-3">
                   <input 
                     type="color" 
@@ -527,24 +527,24 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
                       <button
                         key={label.id}
                         onClick={() => {
-                          if (!canEdit) return;
+                          if (role !== 'agency') return;
                           const currentLabels = tempLabelIds;
                           const newLabels = isSelected
                             ? currentLabels.filter(id => id !== label.id)
                             : [...currentLabels, label.id];
                           setTempLabelIds(newLabels);
                         }}
-                        disabled={!canEdit}
+                        disabled={role !== 'agency'}
                         className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter border transition-all ${
                           isSelected
                             ? "shadow-sm scale-105"
                             : "opacity-40 grayscale hover:opacity-100 hover:grayscale-0"
-                        } ${!canEdit && !isSelected ? "hidden" : ""}`}
+                        } ${role !== 'agency' && !isSelected ? "hidden" : ""}`}
                         style={{ 
                           backgroundColor: isSelected ? `${label.color}20` : "transparent", 
                           color: label.color, 
                           borderColor: isSelected ? label.color : "#e5e7eb",
-                          cursor: canEdit ? "pointer" : "default"
+                          cursor: role === 'agency' ? "pointer" : "default"
                         }}
                       >
                         {label.name}
