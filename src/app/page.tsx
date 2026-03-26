@@ -75,10 +75,11 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
 
   // GHL Auto-Sync: Force resolution if identity is present and either:
   // 1. User doesn't exist locally
-  // 2. Local user role doesn't match the GHL identity source (e.g. was agency, now contact)
-  const preferredRole = ghlContactId ? "client" : "agency";
+  // 2. Local user role doesn't match the GHL identity source (ONLY if they enter as a contact)
+  // We DO NOT force 'agency' role if they enter via userId, to allow DB role overrides (e.g. staff who are actually clients)
+  const preferredRole = ghlContactId ? "client" : undefined;
 
-  if (ghlIdentity && (!currentUser || (currentUser.role !== preferredRole))) {
+  if (ghlIdentity && (!currentUser || (preferredRole && currentUser.role !== preferredRole))) {
     const resolved = await resolveUser(ghlIdentity, preferredRole);
     if (resolved) {
       currentUser = resolved as unknown as User;
@@ -113,17 +114,15 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
     profile_pic: null
   } as User;
 
-  // V12.7 Role Fix: Clean, explicit priority for determining role
-  let currentRole: Role = "agency"; // default fallback
+  // V12.8 Role Fix: Clean, explicit priority for determining role
+  let currentRole: Role = "agency"; // default fallback for brand new unknown users
   
   if (searchParams?.role) {
     currentRole = searchParams.role as Role;
   } else if (ghlContactId) {
-    currentRole = "client"; // High priority: if entered via contact API link
-  } else if (ghlUserId) {
-    currentRole = "agency"; // High priority: if entered via staff API link
-  } else if (finalUser?.role) {
-    currentRole = finalUser.role as Role; // Low priority: whatever is stored in DB
+    currentRole = "client"; // GHL Contact Portal == 100% Client
+  } else if (finalUser && finalUser.id !== 'placeholder') {
+    currentRole = finalUser.role as Role; // DB Role (allows custom overrides for GHL Staff who are clients)
   }
 
   // V9.2 - Filter columns for clients
