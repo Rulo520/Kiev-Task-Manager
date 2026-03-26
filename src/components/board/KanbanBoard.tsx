@@ -124,8 +124,18 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
   }, [supabase]);
 
 
+  const fetchTaskDetailsWithRetry = useCallback(async (taskId: string, retries = 3, delay = 500) => {
+    for (let i = 0; i < retries; i++) {
+      const task = await fetchTaskDetails(taskId);
+      if (task) return task;
+      await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
+    }
+    return null;
+  }, [fetchTaskDetails]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+
       // Ignore if typing in an input/textarea
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
@@ -151,22 +161,37 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
           const newPayload = payload.new as any;
 
           // OPTIMIZATION: Immediate state update with payload (shallows)
-          // This makes the card move instantly while the full fetch happens in background
+          // For INSERT, we create a provisional task. For UPDATE, we merge.
           setTasks((prev) => {
             const index = prev.findIndex(t => t.id === id);
+            const otherTasks = prev.filter(t => t.id !== id);
+            
+            let updatedTask;
             if (index !== -1) {
-                const updated = { ...prev[index], ...newPayload };
-                const otherTasks = prev.filter(t => t.id !== id);
-                return [updated, ...otherTasks]; // Temporarily un-sorted but in correct list
+              updatedTask = { ...prev[index], ...newPayload };
+            } else {
+              // Provisional task for INSERT
+              updatedTask = {
+                ...newPayload,
+                assignees: [],
+                labels: [],
+                checklists: [],
+                attachments: [],
+                comments: [],
+                creator: null // Will be hydrated
+              };
             }
-            return prev;
+
+            return [updatedTask, ...otherTasks].sort((a, b) => {
+              if (a.position !== b.position) return a.position - b.position;
+              return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+            });
           });
 
-          const updatedTask = await fetchTaskDetails(id);
+          const updatedTask = await fetchTaskDetailsWithRetry(id);
           if (updatedTask) {
             setTasks((prev) => {
               const otherTasks = prev.filter(t => t.id !== id);
-              // Order by position ASC, then created_at DESC
               return [...otherTasks, updatedTask].sort((a, b) => {
                   if (a.position !== b.position) return a.position - b.position;
                   return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
@@ -174,6 +199,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
             });
           }
         } else if (payload.eventType === "DELETE") {
+
 
           setTasks((prev) => prev.filter(t => t.id !== payload.old.id));
         }
