@@ -1,27 +1,23 @@
 export const APP_NAME = "Kiev Platform";
-export const APP_VERSION = "V17.2";
+export const APP_VERSION = "V17.3";
 /*
   V13.1 - Handshake & Clean URL
   V13.2 - In-App Notifications Base
   V13.3 - Deep Notification Integration (Click-To-Open)
   V13.4 - Realtime Performance Optimization
   V13.5 - Instant Creation Sync Fix (Initial)
-  V13.6 - Proactive Sync Fallback (Final)
-  V13.7 - Restricted Client Edit Permissions
-  V13.8 - Deadline Time Support (10 AM default)
-  V13.9 - Task Creation Metadata (Time + Creator)
-  V14.0 - Deadline Color Coding (Red/Orange/Blue)
-  V14.5 - Accumulative Filters & Client Attribution (Title | Client)
-  V14.6 - Differentiated Message Counts (Public/Internal Icons)
-  V15.0 - Visual Overhaul (High Contrast & Compact Layout)
-  V15.1 - Visual Overhaul (Light Theme + High Density)
-  V15.2 - Keyboard Navigation (ESC to Close Filters)
-  V16.0 - Enhanced Calendar (Day/Week/Month + Persistence)
+  V13.3 - Filter System & Modern Colors
+  V13.4 - Private Chat Agency
+  V14.0 - Calendar View Basic
+  V15.0 - Card Design Refresh (Trello Style Contrast)
+  V16.0 - Filter Esc Fix (Keyboard Navigation)
   V16.1 - Bug fixes (Private Notifications & Calendar Interaction)
   V16.2 - Calendar Sorting (By Deadline)
   V16.3 - Real-time Calendar Updates (Immediate State Sync)
   V17.0 - Manual Save/Cancel Pattern & Unsaved Changes Warning
   V17.1 - Traditional Save Button (Header) & Refined Exit Flow
+  V17.2 - Fix: Task Creator Permissions (Stringified IDs)
+  V17.3 - Simplified First Column Permissions (Open Edit for all)
 */
 
 
