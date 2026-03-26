@@ -113,12 +113,18 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
     profile_pic: null
   } as User;
 
-  // V12.6 Role Fix: Derive role from GHL identity source FIRST
-  // If GHL sent a contactId → client, if it sent userId → agency, otherwise fallback to DB
-  const currentRole: Role =
-    (searchParams?.role as Role) ||
-    (ghlContactId ? "client" : ghlUserId ? "agency" : (finalUser.role as Role)) ||
-    "agency";
+  // V12.7 Role Fix: Clean, explicit priority for determining role
+  let currentRole: Role = "agency"; // default fallback
+  
+  if (searchParams?.role) {
+    currentRole = searchParams.role as Role;
+  } else if (ghlContactId) {
+    currentRole = "client"; // High priority: if entered via contact API link
+  } else if (ghlUserId) {
+    currentRole = "agency"; // High priority: if entered via staff API link
+  } else if (finalUser?.role) {
+    currentRole = finalUser.role as Role; // Low priority: whatever is stored in DB
+  }
 
   // V9.2 - Filter columns for clients
   if (currentRole === "client") {
