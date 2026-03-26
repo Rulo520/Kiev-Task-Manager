@@ -105,7 +105,7 @@ export function Column({
     <div
       ref={setNodeRef}
       style={style}
-      className={`bg-[#ebedf0] rounded-2xl p-4 w-[300px] min-w-[300px] flex flex-col max-h-full border border-gray-300 shadow-md transition-shadow hover:shadow-lg ${isPrivate ? 'border-amber-300 ring-1 ring-amber-100' : ''}`}
+      className={`bg-slate-50 rounded-2xl p-4 w-[300px] min-w-[300px] flex flex-col max-h-full border border-gray-200 shadow-sm transition-shadow hover:shadow-md ${isPrivate ? 'border-amber-300 ring-1 ring-amber-50' : ''}`}
     >
       <div className="flex items-center justify-between mb-4 px-1">
         <div className="flex items-center gap-3">

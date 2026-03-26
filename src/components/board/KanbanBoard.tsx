@@ -592,9 +592,9 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#1a202c]">
+    <div className="flex flex-col h-full bg-white">
       {/* TOOLBAR */}
-      <div className="px-8 pb-6 pt-4 flex flex-col md:flex-row gap-4 items-center justify-between bg-[#1a202c]/50 backdrop-blur-sm border-b border-white/5">
+      <div className="px-8 pb-6 pt-4 flex flex-col md:flex-row gap-4 items-center justify-between bg-white border-b border-gray-100">
         {syncError && (
           <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] bg-red-600/90 text-white px-6 py-3 rounded-full flex items-center gap-3 backdrop-blur-md shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300">
             <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
