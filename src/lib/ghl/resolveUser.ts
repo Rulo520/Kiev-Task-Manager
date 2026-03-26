@@ -94,7 +94,7 @@ export async function resolveUser(ghlId: string, preferredRole?: "agency" | "cli
   const { data: existingUser } = await supabase
     .from("users")
     .select("*")
-    .or(`id.eq."${ghlId}",ghl_user_id.eq."${ghlId}",email.eq."${ghlId}"`)
+    .or(`id.eq.${ghlId},ghl_user_id.eq.${ghlId},email.eq.${ghlId}`)
     .maybeSingle();
 
   if (existingUser && (!preferredRole || existingUser.role === preferredRole)) {
