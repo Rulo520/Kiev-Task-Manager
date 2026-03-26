@@ -115,14 +115,14 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
   } as User;
 
   // V12.8 Role Fix: Clean, explicit priority for determining role
-  let currentRole: Role = "agency"; // default fallback for brand new unknown users
+  let currentRole: Role = "client"; // Default to safest role
   
-  if (searchParams?.role) {
-    currentRole = searchParams.role as Role;
+  if (isDebug && searchParams?.role) {
+    currentRole = searchParams.role as Role; // Only allow override in debug mode
   } else if (ghlContactId) {
     currentRole = "client"; // GHL Contact Portal == 100% Client
   } else if (finalUser && finalUser.id !== 'placeholder') {
-    currentRole = finalUser.role as Role; // DB Role (allows custom overrides for GHL Staff who are clients)
+    currentRole = finalUser.role as Role; // DB Role (Verified identity)
   }
 
   // V9.2 - Filter columns for clients
@@ -175,27 +175,12 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
             </div>
           </div>
           
-          <div className="ml-10 flex gap-2 p-1 bg-slate-50 rounded-xl border border-slate-100">
-            <a 
-              href={`${baseUrl}/?role=agency${isDebug ? "&debug=true" : ""}`}
-              className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${currentRole === "agency" ? "bg-white text-indigo-600 shadow-sm border border-slate-100" : "text-gray-400 hover:text-gray-600"}`}
-            >
-              Agencia
-            </a>
-            <a 
-              href={`${baseUrl}/?role=client${isDebug ? "&debug=true" : ""}`}
-              className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${currentRole === "client" ? "bg-white text-indigo-600 shadow-sm border border-slate-100" : "text-gray-400 hover:text-gray-600"}`}
-            >
-              Cliente
-            </a>
-          </div>
-
           {currentRole === "agency" && (
             <a 
               href={`${baseUrl}/?user_id=${finalUser.id}${isDebug ? "&debug=true" : ""}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="ml-4 flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl border border-indigo-100 transition-all text-[9px] font-black uppercase tracking-widest group shadow-sm hover:shadow-md"
+              className="ml-10 flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl border border-indigo-100 transition-all text-[9px] font-black uppercase tracking-widest group shadow-sm hover:shadow-md"
               title="Sincronizar sesión en una pestaña nueva"
             >
               <ExternalLink size={12} className="group-hover:scale-110 transition-transform" />
