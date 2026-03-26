@@ -1,5 +1,5 @@
 export const APP_NAME = "Kiev Platform";
-export const APP_VERSION = "V17.5";
+export const APP_VERSION = "V17.6";
 /*
   V13.1 - Handshake & Clean URL
   V13.2 - In-App Notifications Base

@@ -652,26 +652,28 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
         <div className="px-8 pb-6 animate-in fade-in slide-in-from-top-2 duration-300">
           <div className="bg-white/70 backdrop-blur-md rounded-[32px] p-6 border border-white shadow-xl flex flex-wrap gap-8">
             {/* Multi-select Responsables */}
-            <div className="space-y-3">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Responsables</label>
-              <div className="flex flex-wrap gap-2 max-w-[300px]">
-                <button 
-                  onClick={() => setFilterAssignees([])}
-                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${filterAssignees.length === 0 ? "bg-indigo-600 text-white shadow-md shadow-indigo-100" : "bg-white text-gray-400 border border-gray-100 hover:border-indigo-200"}`}
-                >
-                  Todos
-                </button>
-                {(role === 'agency' ? agencyUsers : [currentUser]).map(u => (
+            {role === 'agency' && (
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Responsables</label>
+                <div className="flex flex-wrap gap-2 max-w-[300px]">
                   <button 
-                    key={u.id}
-                    onClick={() => setFilterAssignees(prev => prev.includes(u.id) ? prev.filter(id => id !== u.id) : [...prev, u.id])}
-                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${filterAssignees.includes(u.id) ? "bg-indigo-600 text-white shadow-md shadow-indigo-100" : "bg-white text-gray-400 border border-gray-100 hover:border-indigo-200"}`}
+                    onClick={() => setFilterAssignees([])}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${filterAssignees.length === 0 ? "bg-indigo-600 text-white shadow-md shadow-indigo-100" : "bg-white text-gray-400 border border-gray-100 hover:border-indigo-200"}`}
                   >
-                    {u.first_name}
+                    Todos
                   </button>
-                ))}
+                  {agencyUsers.map(u => (
+                    <button 
+                      key={u.id}
+                      onClick={() => setFilterAssignees(prev => prev.includes(u.id) ? prev.filter(id => id !== u.id) : [...prev, u.id])}
+                      className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${filterAssignees.includes(u.id) ? "bg-indigo-600 text-white shadow-md shadow-indigo-100" : "bg-white text-gray-400 border border-gray-100 hover:border-indigo-200"}`}
+                    >
+                      {u.first_name}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Multi-select Etiquetas */}
             <div className="space-y-3">
@@ -696,26 +698,28 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
             </div>
 
             {/* Multi-select Clientes */}
-            <div className="space-y-3">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Clientes (GHL)</label>
-              <div className="flex flex-wrap gap-2 max-w-[400px]">
-                <button 
-                  onClick={() => setFilterClients([])}
-                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${filterClients.length === 0 ? "bg-indigo-600 text-white shadow-md shadow-indigo-100" : "bg-white text-gray-400 border border-gray-100 hover:border-indigo-200"}`}
-                >
-                  Todos
-                </button>
-                {Array.from(new Set(tasks.map(t => t.creator?.company_name).filter(Boolean))).map(clientName => (
+            {role === 'agency' && (
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Clientes (GHL)</label>
+                <div className="flex flex-wrap gap-2 max-w-[400px]">
                   <button 
-                    key={clientName!}
-                    onClick={() => setFilterClients(prev => prev.includes(clientName!) ? prev.filter(c => c !== clientName) : [...prev, clientName!])}
-                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${filterClients.includes(clientName!) ? "bg-indigo-600 text-white shadow-md shadow-indigo-100" : "bg-white text-gray-400 border border-gray-100 hover:border-indigo-200"}`}
+                    onClick={() => setFilterClients([])}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${filterClients.length === 0 ? "bg-indigo-600 text-white shadow-md shadow-indigo-100" : "bg-white text-gray-400 border border-gray-100 hover:border-indigo-200"}`}
                   >
-                    {clientName}
+                    Todos
                   </button>
-                ))}
+                  {Array.from(new Set(tasks.map(t => t.creator?.company_name).filter(Boolean))).map(clientName => (
+                    <button 
+                      key={clientName!}
+                      onClick={() => setFilterClients(prev => prev.includes(clientName!) ? prev.filter(c => c !== clientName) : [...prev, clientName!])}
+                      className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${filterClients.includes(clientName!) ? "bg-indigo-600 text-white shadow-md shadow-indigo-100" : "bg-white text-gray-400 border border-gray-100 hover:border-indigo-200"}`}
+                    >
+                      {clientName}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="flex-1 flex items-end justify-end">
               <button 
