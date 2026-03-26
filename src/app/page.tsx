@@ -3,7 +3,7 @@ import { APP_VERSION, APP_NAME } from "@/constants/version";
 import { Gatekeeper } from "@/components/auth/Gatekeeper";
 import { createClient } from "@supabase/supabase-js";
 import { Column, Task, User, Role } from "@/types/kanban";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { ExternalLink } from "lucide-react";
 import { resolveUser } from "@/lib/ghl/resolveUser";
 
@@ -125,6 +125,12 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
     filteredTasks = filteredTasks.filter(t => t.created_by === finalUser.id);
   }
 
+  // 4. Absolute URL for Iframe breakouts
+  const headersList = await headers();
+  const host = headersList.get("host") || "kiev-task-manager-7818.vercel.app";
+  const protocol = headersList.get("x-forwarded-proto") || "https";
+  const baseUrl = `${protocol}://${host}`;
+
   return (
     <main className="flex flex-col h-screen w-full relative">
       {isDebug && (
@@ -159,13 +165,13 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
           
           <div className="ml-10 flex gap-2 p-1 bg-slate-50 rounded-xl border border-slate-100">
             <a 
-              href="?role=agency"
+              href={`${baseUrl}/?role=agency${isDebug ? "&debug=true" : ""}`}
               className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${currentRole === "agency" ? "bg-white text-indigo-600 shadow-sm border border-slate-100" : "text-gray-400 hover:text-gray-600"}`}
             >
               Agencia
             </a>
             <a 
-              href="?role=client"
+              href={`${baseUrl}/?role=client${isDebug ? "&debug=true" : ""}`}
               className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${currentRole === "client" ? "bg-white text-indigo-600 shadow-sm border border-slate-100" : "text-gray-400 hover:text-gray-600"}`}
             >
               Cliente
@@ -174,7 +180,7 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
 
           {currentRole === "agency" && (
             <a 
-              href={`?user_id=${finalUser.id}${isDebug ? "&debug=true" : ""}`}
+              href={`${baseUrl}/?user_id=${finalUser.id}${isDebug ? "&debug=true" : ""}`}
               target="_blank"
               rel="noopener noreferrer"
               className="ml-4 flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl border border-indigo-100 transition-all text-[9px] font-black uppercase tracking-widest group shadow-sm hover:shadow-md"
