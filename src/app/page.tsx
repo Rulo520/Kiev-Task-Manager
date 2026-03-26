@@ -1,7 +1,9 @@
 import { KanbanBoard } from "@/components/board/KanbanBoard";
 import { APP_VERSION, APP_NAME } from "@/constants/version";
 import { Gatekeeper } from "@/components/auth/Gatekeeper";
+import NotificationBell from "@/components/notifications/NotificationBell";
 import { createClient } from "@supabase/supabase-js";
+
 import { Column, Task, User, Role } from "@/types/kanban";
 import { cookies, headers } from "next/headers";
 import { ExternalLink } from "lucide-react";
@@ -188,7 +190,10 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
         </div>
         
         <div className="flex items-center gap-6">
+          <NotificationBell userId={finalUser.id} />
+          
           <div className="flex flex-col items-end">
+
             <div className="text-[12px] font-black text-gray-900 uppercase tracking-tighter">{finalUser.first_name} {finalUser.last_name}</div>
             <div className="flex items-center gap-1.5">
                <span className="relative flex h-2 w-2">

@@ -14,6 +14,8 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const RESEND_FROM = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
 const GHL_WEBHOOK_URL = process.env.GHL_WEBHOOK_URL;
 const APP_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://kiev-task-manager.vercel.app";
+const DISABLE_EMAIL_NOTIFICATIONS = process.env.DISABLE_EMAIL_NOTIFICATIONS === "true" || true; // Default to true as per user request
+
 
 function getEmailSubjectAndBody(ctx: NotificationContext): { subject: string, html: string } {
   const taskTitle = ctx.task.title || "Sin título";
@@ -66,6 +68,11 @@ function getEmailSubjectAndBody(ctx: NotificationContext): { subject: string, ht
 }
 
 export async function sendTaskNotification(ctx: NotificationContext) {
+  if (DISABLE_EMAIL_NOTIFICATIONS) {
+    console.log(`[Notifications] Notificación de email omitida (Desactivado por configuración): ${ctx.notificationType}`);
+    return;
+  }
+
   if (!ctx.recipientEmail) {
     console.warn("No se pudo enviar notificación: el destinatario no tiene correo electrónico.");
     return;
@@ -131,3 +138,4 @@ export async function sendTaskNotification(ctx: NotificationContext) {
     console.log(`======================================\n`);
   }
 }
+

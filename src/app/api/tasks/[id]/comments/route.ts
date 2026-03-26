@@ -3,6 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 import { getAuthUser } from "@/lib/auth";
 
 import { getAdminClient } from "@/lib/supabase/admin";
+import { createInAppNotification } from "@/lib/inAppNotifications";
+
 
 export async function POST(
   req: Request,
@@ -39,6 +41,38 @@ export async function POST(
       .single();
 
     if (error) throw error;
+
+    // --- IN-APP NOTIFICATIONS: New Comment ---
+    try {
+      // 1. Fetch task owner and assignees
+      const { data: task } = await supabase
+        .from("tasks")
+        .select("title, created_by, assignees:task_assignees(user_id)")
+        .eq("id", task_id)
+        .single();
+
+      if (task) {
+        const recipients = new Set<string>();
+        if (task.created_by && task.created_by !== authUser.id) recipients.add(task.created_by);
+        task.assignees?.forEach((a: any) => {
+          if (a.user_id !== authUser.id) recipients.add(a.user_id);
+        });
+
+        recipients.forEach(userId => {
+          createInAppNotification({
+            userId,
+            actorId: authUser.id,
+            taskId: task_id,
+            type: "COMMENT",
+            title: "Nuevo Comentario",
+            message: `${authUser.first_name} comentó en "${task.title}": ${content.substring(0, 30)}${content.length > 30 ? "..." : ""}`
+          });
+        });
+      }
+    } catch (err) {
+      console.error("Error triggering comment notification:", err);
+    }
+
 
     return NextResponse.json(comment, { 
       status: 201,

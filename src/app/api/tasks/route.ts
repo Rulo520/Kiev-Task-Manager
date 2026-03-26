@@ -4,6 +4,8 @@ import { getAuthUser, GHLUser } from "@/lib/auth";
 
 import { getAdminClient } from "@/lib/supabase/admin";
 import { sendTaskNotification } from "@/lib/notifications";
+import { createInAppNotification } from "@/lib/inAppNotifications";
+
 
 export async function POST(req: Request) {
   try {
@@ -103,7 +105,24 @@ export async function POST(req: Request) {
       await supabase.from("task_attachments").insert(attachmentRows);
     }
 
+    // --- IN-APP NOTIFICATION: Task Created ---
+    // If a client creates a task, notify all agency users (or at least acknowledge receipt)
+    if (authUser.role === "client") {
+      const { data: agencyUsers } = await supabase.from("users").select("id").eq("role", "agency");
+      agencyUsers?.forEach(agencyUser => {
+        createInAppNotification({
+          userId: agencyUser.id,
+          actorId: authUser.id,
+          taskId: task.id,
+          type: "TASK_CREATED",
+          title: "Nuevo Requerimiento",
+          message: `${authUser.first_name} ha creado: ${title}`
+        });
+      });
+    }
+
     // Return the full task with relationships
+
     const { data: fullTask } = await supabase
       .from("tasks")
       .select(`
@@ -205,6 +224,18 @@ export async function PUT(req: Request) {
                 recipientEmail: creatorData?.email,
                 recipientName: creatorData?.first_name || "Cliente"
               });
+              
+              // In-App
+              if (existingTask.created_by) {
+                createInAppNotification({
+                  userId: existingTask.created_by,
+                  actorId: authUser.id,
+                  taskId: id,
+                  type: "COLUMN_CHANGE",
+                  title: "Tarea en Proceso",
+                  message: `Tu tarea "${title || existingTask.title}" ha comenzado a procesarse.`
+                });
+              }
             } else if (column_id === lastColumnId && existingTask.column_id !== lastColumnId) {
               await sendTaskNotification({
                 notificationType: "REACHED_LAST_STAGE",
@@ -212,8 +243,21 @@ export async function PUT(req: Request) {
                 recipientEmail: creatorData?.email,
                 recipientName: creatorData?.first_name || "Cliente"
               });
+
+              // In-App
+              if (existingTask.created_by) {
+                createInAppNotification({
+                  userId: existingTask.created_by,
+                  actorId: authUser.id,
+                  taskId: id,
+                  type: "COLUMN_CHANGE",
+                  title: "¡Tarea Finalizada!",
+                  message: `Tu tarea "${title || existingTask.title}" ya está en la etapa final.`
+                });
+              }
             }
           }
+
         }
       } catch (err) {
         console.error("Error sending movement notification:", err);
@@ -246,7 +290,18 @@ export async function PUT(req: Request) {
                 recipientEmail: user.email,
                 recipientName: user.first_name || "Usuario"
               });
+
+              // In-App
+              createInAppNotification({
+                userId: user.id,
+                actorId: authUser.id,
+                taskId: id,
+                type: "ASSIGNED",
+                title: "Nueva Asignación",
+                message: `${authUser.first_name} te ha asignado la tarea: ${title || existingTask.title}`
+              });
             });
+
           }
         } catch (err) {
           console.error("Error sending assignee notification:", err);
