@@ -794,7 +794,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
 
         {view === "calendar" && (
           <div className="h-full overflow-y-auto custom-scrollbar pb-10">
-            <CalendarView tasks={filteredTasks} />
+            <CalendarView tasks={filteredTasks} onTaskClick={openTaskDetail} />
           </div>
         )}
       </div>

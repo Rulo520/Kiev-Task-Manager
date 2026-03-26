@@ -25,11 +25,12 @@ import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, LayoutGrid,
 
 interface CalendarViewProps {
   tasks: Task[];
+  onTaskClick?: (task: Task) => void;
 }
 
 type ViewMode = "day" | "week" | "month";
 
-export function CalendarView({ tasks }: CalendarViewProps) {
+export function CalendarView({ tasks, onTaskClick }: CalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("month");
   const [isLoaded, setIsLoaded] = useState(false);
@@ -69,6 +70,10 @@ export function CalendarView({ tasks }: CalendarViewProps) {
   const renderTask = (task: Task, isCompact = true) => (
     <div 
       key={task.id}
+      onClick={(e) => {
+        e.stopPropagation();
+        onTaskClick?.(task);
+      }}
       className={`group/task px-2 py-1.5 rounded-lg border shadow-sm transition-all hover:scale-[1.02] cursor-pointer flex flex-col gap-1 ${
         task.priority === 'urgent' ? 'bg-rose-50 border-rose-100 text-rose-700' :
         task.priority === 'high' ? 'bg-orange-50 border-orange-100 text-orange-700' :
@@ -208,6 +213,7 @@ export function CalendarView({ tasks }: CalendarViewProps) {
               dayTasks.map(task => (
                 <div 
                   key={task.id}
+                  onClick={() => onTaskClick?.(task)}
                   className="p-6 rounded-2xl border border-gray-100 bg-white shadow-sm hover:shadow-xl transition-all duration-300 flex items-center justify-between group cursor-pointer border-l-4 border-l-indigo-500"
                 >
                   <div className="flex-1">

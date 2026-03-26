@@ -58,16 +58,27 @@ export async function POST(
           if (a.user_id !== authUser.id) recipients.add(a.user_id);
         });
 
-        recipients.forEach(userId => {
-          createInAppNotification({
-            userId,
-            actorId: authUser.id,
-            taskId: task_id,
-            type: "COMMENT",
-            title: "Nuevo Comentario",
-            message: `${authUser.first_name} comentó en "${task.title}": ${content.substring(0, 30)}${content.length > 30 ? "..." : ""}`
+        // 1. Fetch task owner, assignees, and their roles
+        const { data: recipientsData, error: rolesError } = await supabase
+          .from("users")
+          .select("id, role")
+          .in("id", Array.from(recipients));
+
+        if (!rolesError && recipientsData) {
+          recipientsData.forEach(recipient => {
+            // Skip clients if it's an internal comment
+            if (type === "internal" && recipient.role === "client") return;
+
+            createInAppNotification({
+              userId: recipient.id,
+              actorId: authUser.id,
+              taskId: task_id,
+              type: "COMMENT",
+              title: type === "internal" ? "Nuevo Mensaje Privado" : "Nuevo Comentario",
+              message: `${authUser.first_name} comentó: ${content.substring(0, 30)}${content.length > 30 ? "..." : ""}`
+            });
           });
-        });
+        }
       }
     } catch (err) {
       console.error("Error triggering comment notification:", err);
