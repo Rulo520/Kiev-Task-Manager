@@ -168,7 +168,8 @@ export async function PUT(req: Request) {
     if (!id) return NextResponse.json({ error: "Task ID required" }, { status: 400 });
 
     // --- PERMISSION CHECK ---
-    const { data: existingTask } = await supabase.from("tasks").select("title, created_by, column_id, assignees:task_assignees(user_id)").eq("id", id).single();
+    const { data: existingTask } = await supabase.from("tasks").select("title, description, due_date, priority, created_by, column_id, assignees:task_assignees(user_id)").eq("id", id).single();
+
     if (!existingTask) return NextResponse.json({ error: "Task not found" }, { status: 404 });
 
     // Fetch creator explicitly to avoid Foreign Key hint crashes
@@ -210,12 +211,41 @@ export async function PUT(req: Request) {
     // --- NOTIFICATIONS: Column Movement ---
     if (column_id && column_id !== existingTask.column_id) {
       try {
-        const { data: existingCol } = await supabase.from("columns").select("location_id").eq("id", existingTask.column_id).single();
-        if (existingCol?.location_id) {
-          const { data: columns } = await supabase.from("columns").select("id").eq("location_id", existingCol.location_id).order("position");
-          if (columns && columns.length > 0) {
-            const firstColumnId = columns[0].id;
-            const lastColumnId = columns[columns.length - 1].id;
+        const { data: newCol } = await supabase.from("columns").select("title").eq("id", column_id).single();
+        
+        // Notify owner
+        if (existingTask.created_by && existingTask.created_by !== authUser.id) {
+          createInAppNotification({
+            userId: existingTask.created_by,
+            actorId: authUser.id,
+            taskId: id,
+            type: "COLUMN_CHANGE",
+            title: "Movimiento de Tarea",
+            message: `"${existingTask.title}" se movió a: ${newCol?.title || 'nueva fase'}`
+          });
+        }
+
+        // Notify assignees
+        existingTask.assignees?.forEach((a: any) => {
+          if (a.user_id !== authUser.id) {
+            createInAppNotification({
+              userId: a.user_id,
+              actorId: authUser.id,
+              taskId: id,
+              type: "COLUMN_CHANGE",
+              title: "Movimiento de Tarea",
+              message: `"${existingTask.title}" se movió a: ${newCol?.title || 'nueva fase'}`
+            });
+          }
+        });
+
+        // Keep legacy email logic for specific stages (first -> move out, or last)
+        const { data: existingColRef } = await supabase.from("columns").select("location_id").eq("id", existingTask.column_id).single();
+        if (existingColRef?.location_id) {
+          const { data: columnsData } = await supabase.from("columns").select("id").eq("location_id", existingColRef.location_id).order("position");
+          if (columnsData && columnsData.length > 0) {
+            const firstColumnId = columnsData[0].id;
+            const lastColumnId = columnsData[columnsData.length - 1].id;
 
             if (existingTask.column_id === firstColumnId && column_id !== firstColumnId) {
               await sendTaskNotification({
@@ -224,18 +254,6 @@ export async function PUT(req: Request) {
                 recipientEmail: creatorData?.email,
                 recipientName: creatorData?.first_name || "Cliente"
               });
-              
-              // In-App
-              if (existingTask.created_by) {
-                createInAppNotification({
-                  userId: existingTask.created_by,
-                  actorId: authUser.id,
-                  taskId: id,
-                  type: "COLUMN_CHANGE",
-                  title: "Tarea en Proceso",
-                  message: `Tu tarea "${title || existingTask.title}" ha comenzado a procesarse.`
-                });
-              }
             } else if (column_id === lastColumnId && existingTask.column_id !== lastColumnId) {
               await sendTaskNotification({
                 notificationType: "REACHED_LAST_STAGE",
@@ -243,26 +261,40 @@ export async function PUT(req: Request) {
                 recipientEmail: creatorData?.email,
                 recipientName: creatorData?.first_name || "Cliente"
               });
-
-              // In-App
-              if (existingTask.created_by) {
-                createInAppNotification({
-                  userId: existingTask.created_by,
-                  actorId: authUser.id,
-                  taskId: id,
-                  type: "COLUMN_CHANGE",
-                  title: "¡Tarea Finalizada!",
-                  message: `Tu tarea "${title || existingTask.title}" ya está en la etapa final.`
-                });
-              }
             }
           }
-
         }
       } catch (err) {
         console.error("Error sending movement notification:", err);
       }
     }
+
+    // --- NOTIFICATIONS: Detail Modifications ---
+    const metadataChanged = 
+      (description !== undefined && description !== existingTask.description) ||
+      (due_date !== undefined && due_date !== existingTask.due_date) ||
+      (priority !== undefined && priority !== existingTask.priority);
+
+    if (metadataChanged) {
+      const recipients = new Set<string>();
+      if (existingTask.created_by && existingTask.created_by !== authUser.id) recipients.add(existingTask.created_by);
+      existingTask.assignees?.forEach((a: any) => {
+        if (a.user_id !== authUser.id) recipients.add(a.user_id);
+      });
+
+      recipients.forEach(userId => {
+        createInAppNotification({
+          userId,
+          actorId: authUser.id,
+          taskId: id,
+          type: "TASK_UPDATED", 
+          title: "Tarea Actualizada",
+
+          message: `${authUser.first_name} actualizó los detalles de "${existingTask.title}"`
+        });
+      });
+    }
+
 
     // V9.3 - Handle Assignee Updates (Agency Only/Privileged)
     const { assignees } = body;

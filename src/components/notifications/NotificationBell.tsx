@@ -124,8 +124,18 @@ export default function NotificationBell({ userId }: NotificationBellProps) {
         return <MessageSquare className="w-4 h-4 text-emerald-500" />;
       case "TASK_CREATED":
         return <PlusCircle className="w-4 h-4 text-purple-500" />;
+      case "TASK_UPDATED":
+        return <Check className="w-4 h-4 text-sky-500" />;
       default:
         return <Bell className="w-4 h-4 text-slate-400" />;
+    }
+  };
+
+  const handleNotificationClick = (n: Notification) => {
+    markAsRead(n.id);
+    if (n.task_id) {
+      window.dispatchEvent(new CustomEvent("open-task-detail", { detail: { taskId: n.task_id } }));
+      setIsOpen(false);
     }
   };
 
@@ -175,12 +185,10 @@ export default function NotificationBell({ userId }: NotificationBellProps) {
                 notifications.map((n) => (
                   <div 
                     key={n.id}
-                    onClick={() => {
-                        markAsRead(n.id);
-                        // Here we could trigger a detail view open event if we had a global state for it
-                    }}
+                    onClick={() => handleNotificationClick(n)}
                     className={`p-4 border-b border-slate-50 flex gap-3 hover:bg-slate-50 transition-colors cursor-pointer relative group ${!n.is_read ? 'bg-blue-50/30' : ''}`}
                   >
+
                     <div className="mt-1 shrink-0">{getIcon(n.type)}</div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-semibold text-slate-900 mb-0.5">{n.title}</p>

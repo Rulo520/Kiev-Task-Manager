@@ -1,6 +1,7 @@
 import { getAdminClient } from "@/lib/supabase/admin";
 
-export type InAppNotificationType = "ASSIGNED" | "COLUMN_CHANGE" | "COMMENT" | "CHECKLIST" | "TASK_CREATED";
+export type InAppNotificationType = "ASSIGNED" | "COLUMN_CHANGE" | "COMMENT" | "CHECKLIST" | "TASK_CREATED" | "TASK_UPDATED";
+
 
 interface InAppNotificationParams {
   userId: string; // Recipient

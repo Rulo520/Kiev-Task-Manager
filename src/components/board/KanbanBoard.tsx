@@ -210,6 +210,30 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
     return () => { supabase.removeChannel(channel); };
   }, [supabase, fetchTaskDetails]);
 
+  // V13.2 - Open Task from Notification Event
+  useEffect(() => {
+    const handleOpenTask = async (e: any) => {
+      const { taskId } = e.detail;
+      // Search in current state first
+      const task = tasksRef.current.find(t => t.id === taskId);
+      if (task) {
+        setDetailTask(task);
+        setIsDetailOpen(true);
+      } else {
+        // Fetch from DB if not found in local state (e.g. filtered out)
+        const fetched = await fetchTaskDetails(taskId);
+        if (fetched) {
+          setDetailTask(fetched);
+          setIsDetailOpen(true);
+        }
+      }
+    };
+
+    window.addEventListener("open-task-detail", handleOpenTask);
+    return () => window.removeEventListener("open-task-detail", handleOpenTask);
+  }, [fetchTaskDetails]);
+
+
   // --- DND HANDLERS ---
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
