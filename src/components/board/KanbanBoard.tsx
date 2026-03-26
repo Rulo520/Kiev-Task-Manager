@@ -98,10 +98,10 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
   const pendingFetches = useRef<Set<string>>(new Set());
 
   const fetchTaskDetails = useCallback(async (taskId: string) => {
-    if (pendingFetches.current.has(taskId)) return null;
-    pendingFetches.current.add(taskId);
+    // Removed pendingFetches block to ensure the latest update always proceeds
     
     try {
+
       const { data, error } = await supabase
         .from("tasks")
         .select(`
@@ -119,10 +119,10 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
       if (error) return null;
       return data as unknown as Task;
     } finally {
-      // Small delay to prevent rapid-fire redundant fetches
-      setTimeout(() => pendingFetches.current.delete(taskId), 200);
+      // No delay needed if we allow overlapping (Supabase handles order via commit)
     }
   }, [supabase]);
+
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -148,15 +148,33 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
       .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, async (payload) => {
         if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
           const id = (payload.new as { id: string }).id;
+          const newPayload = payload.new as any;
+
+          // OPTIMIZATION: Immediate state update with payload (shallows)
+          // This makes the card move instantly while the full fetch happens in background
+          setTasks((prev) => {
+            const index = prev.findIndex(t => t.id === id);
+            if (index !== -1) {
+                const updated = { ...prev[index], ...newPayload };
+                const otherTasks = prev.filter(t => t.id !== id);
+                return [updated, ...otherTasks]; // Temporarily un-sorted but in correct list
+            }
+            return prev;
+          });
+
           const updatedTask = await fetchTaskDetails(id);
           if (updatedTask) {
             setTasks((prev) => {
               const otherTasks = prev.filter(t => t.id !== id);
-              // Order by created_at DESC (Newest First)
-              return [...otherTasks, updatedTask].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+              // Order by position ASC, then created_at DESC
+              return [...otherTasks, updatedTask].sort((a, b) => {
+                  if (a.position !== b.position) return a.position - b.position;
+                  return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+              });
             });
           }
         } else if (payload.eventType === "DELETE") {
+
           setTasks((prev) => prev.filter(t => t.id !== payload.old.id));
         }
       })
@@ -214,24 +232,23 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
   useEffect(() => {
     const handleOpenTask = async (e: any) => {
       const { taskId } = e.detail;
-      // Search in current state first
+      
+      // OPTIMIZATION: Always fetch fresh data to guarantee accuracy
+      setIsDetailOpen(true); // Open immediately (will show loading or existing if found)
+      
       const task = tasksRef.current.find(t => t.id === taskId);
-      if (task) {
-        setDetailTask(task);
-        setIsDetailOpen(true);
-      } else {
-        // Fetch from DB if not found in local state (e.g. filtered out)
-        const fetched = await fetchTaskDetails(taskId);
-        if (fetched) {
-          setDetailTask(fetched);
-          setIsDetailOpen(true);
-        }
+      if (task) setDetailTask(task);
+
+      const fetched = await fetchTaskDetails(taskId);
+      if (fetched) {
+        setDetailTask(fetched);
       }
     };
 
     window.addEventListener("open-task-detail", handleOpenTask);
     return () => window.removeEventListener("open-task-detail", handleOpenTask);
   }, [fetchTaskDetails]);
+
 
 
   // --- DND HANDLERS ---
