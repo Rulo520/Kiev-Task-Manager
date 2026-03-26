@@ -90,35 +90,26 @@ export async function resolveUser(ghlId: string, preferredRole?: "agency" | "cli
 
   const supabase = getAdminClient();
 
-  // 1. Check Supabase first (fast path — avoids GHL API calls on repeat visits)
+  // 1. First, find if they exist by GHL ID or Email (Avoid UUID type errors on ID column)
   const { data: existingUser } = await supabase
     .from("users")
     .select("*")
-    .or(`id.eq.${ghlId},ghl_user_id.eq.${ghlId},email.eq.${ghlId}`)
+    .or(`ghl_user_id.eq.${ghlId},email.eq.${ghlId}`)
     .maybeSingle();
 
+  // If found and the role matches, we can use the fast path (unless it's stake)
   if (existingUser && (!preferredRole || existingUser.role === preferredRole)) {
-    // Silently refresh stale records (older than 24h) without blocking the render
     const lastUpdated = new Date(existingUser.updated_at || 0).getTime();
-    const isStale = Date.now() - lastUpdated > 24 * 60 * 60 * 1000;
-
-    if (isStale && GHL_ACCESS_TOKEN) {
-      // Fire-and-forget background refresh
+    if (Date.now() - lastUpdated > 24 * 60 * 60 * 1000 && GHL_ACCESS_TOKEN) {
       refreshUserInBackground(existingUser.ghl_user_id, existingUser.role);
     }
-
     return existingUser as GHLUser;
   }
 
-  // 2. Not in DB yet — ask GHL (requires real credentials)
-  if (!GHL_ACCESS_TOKEN) {
-    console.warn("[resolveUser] GHL_ACCESS_TOKEN not set — cannot resolve unknown user from GHL.");
-    return null;
-  }
+  // 2. Not found OR role mismatch — ask GHL
+  if (!GHL_ACCESS_TOKEN) return existingUser ? (existingUser as GHLUser) : null;
 
-  // 3. Try IDs based on preferred role first
   let ghlProfile: GHLUser | null = null;
-
   if (preferredRole === "client") {
     ghlProfile = await fetchGHLContact(ghlId);
     if (!ghlProfile) ghlProfile = await fetchGHLStaffUser(ghlId);
@@ -127,37 +118,61 @@ export async function resolveUser(ghlId: string, preferredRole?: "agency" | "cli
     if (!ghlProfile) ghlProfile = await fetchGHLContact(ghlId);
   }
 
-  if (!ghlProfile) {
-    console.warn(`[resolveUser] GHL does not recognize ID: ${ghlId}`);
-    return null;
-  }
+  if (!ghlProfile) return existingUser ? (existingUser as GHLUser) : null;
 
-  // 5. Upsert into Supabase
-  const { data: upserted, error } = await supabase
-    .from("users")
-    .upsert(
-      {
+  // 3. Save the findings
+  // If user existed, we UPDATE specifically to avoid conflicts and ensure role change
+  if (existingUser) {
+    const { data: updated, error } = await supabase
+      .from("users")
+      .update({
         ghl_user_id: ghlProfile.ghl_user_id,
         email: ghlProfile.email,
         first_name: ghlProfile.first_name,
         last_name: ghlProfile.last_name,
-        role: ghlProfile.role,
+        role: ghlProfile.role, // Force the correct role from GHL
         location_id: ghlProfile.location_id,
         profile_pic: ghlProfile.profile_pic,
         updated_at: new Date().toISOString(),
-      },
-      { onConflict: "ghl_user_id" }
-    )
+      })
+      .eq("id", existingUser.id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("[resolveUser] Update failed:", error.message);
+      return existingUser as GHLUser;
+    }
+    return updated as GHLUser;
+  }
+
+  // If new, we INSERT (original behavior)
+  const { data: inserted, error } = await supabase
+    .from("users")
+    .insert([{
+      ghl_user_id: ghlProfile.ghl_user_id,
+      email: ghlProfile.email,
+      first_name: ghlProfile.first_name,
+      last_name: ghlProfile.last_name,
+      role: ghlProfile.role,
+      location_id: ghlProfile.location_id,
+      profile_pic: ghlProfile.profile_pic,
+      updated_at: new Date().toISOString(),
+    }])
     .select()
     .single();
 
-  if (error || !upserted) {
-    console.error("[resolveUser] Supabase upsert failed:", error?.message);
-    return null;
+  if (error) {
+    // If insert fails (maybe concurrent?), try one last lookup
+    const { data: finalRetry } = await supabase
+      .from("users")
+      .select("*")
+      .eq("ghl_user_id", ghlProfile.ghl_user_id)
+      .maybeSingle();
+    return (finalRetry as GHLUser) || null;
   }
 
-  console.log(`[resolveUser] ✅ New user resolved & saved: ${upserted.first_name} ${upserted.last_name} (${upserted.role})`);
-  return upserted as GHLUser;
+  return inserted as GHLUser;
 }
 
 // ------------------------------------------------------------------
