@@ -95,8 +95,19 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
 
   const handleConfirmClose = () => {
     if (isDirty) {
-      if (window.confirm("Tienes cambios sin guardar. ¿Deseas descartarlos?")) {
-        onClose();
+      const confirmSave = window.confirm("¿Deseas guardar los cambios antes de salir?");
+      if (confirmSave) {
+        handleSaveAll(true);
+      } else {
+        // We use a custom logic here because window.confirm only has OK/Cancel.
+        // If they click "Cancel" in confirm(), they stay. If they click "OK", they save.
+        // To allow "Discard without saving", we'd need a custom modal.
+        // Given the user's request: "aparecer un popup preguntando si quiere guardar los cambios o prefiere cancelar"
+        // I'll implement a simple two-step with a clear message or just the standard confirm.
+        // Actually, let's stick to the simplest interpretation first:
+        if (window.confirm("¿Estás seguro de que quieres descartar los cambios?")) {
+          onClose();
+        }
       }
     } else {
       onClose();
@@ -283,7 +294,7 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
     finally { setIsSyncing(false); }
   };
 
-  const handleSaveAll = async () => {
+  const handleSaveAll = async (shouldClose = false) => {
     await handleUpdateTask({
       title: task.title,
       description: task.description,
@@ -291,6 +302,7 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
       assignees: tempAssigneeIds as any,
       labels: tempLabelIds as any
     });
+    if (shouldClose) onClose();
   };
 
   const handleDiscard = () => {
@@ -312,9 +324,21 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={handleConfirmClose} />
       
       <div className="relative bg-white w-full max-w-4xl max-h-[90vh] rounded-[32px] shadow-2xl overflow-hidden flex flex-col md:flex-row border border-indigo-100">
-        <button onClick={handleConfirmClose} className="absolute right-6 top-6 z-10 p-2 text-gray-400 hover:text-indigo-600 bg-white rounded-full shadow-lg border border-gray-100 transition-all">
-          <X size={20} />
-        </button>
+        <div className="absolute right-6 top-6 z-10 flex items-center gap-3">
+          {isDirty && (
+            <button 
+              onClick={() => handleSaveAll(true)}
+              disabled={isSyncing}
+              className="px-4 py-2 bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+            >
+              {isSyncing ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
+              Guardar
+            </button>
+          )}
+          <button onClick={handleConfirmClose} className="p-2 text-gray-400 hover:text-indigo-600 bg-white rounded-full shadow-lg border border-gray-100 transition-all">
+            <X size={20} />
+          </button>
+        </div>
 
         {/* Left Side: Content */}
         <div className="flex-1 overflow-y-auto p-8 md:p-10 no-scrollbar border-r border-gray-50">
@@ -807,31 +831,6 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
             </button>
           </form>
         </div>
-
-        {/* Sticky Global Footer for Save/Cancel */}
-        {isDirty && (
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 bg-white/80 backdrop-blur-md px-6 py-3 rounded-2xl shadow-2xl border border-indigo-100 animate-in fade-in slide-in-from-bottom-4 duration-300 z-[110]">
-            <div className="flex flex-col">
-              <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600">Tienes cambios sin guardar</span>
-              <span className="text-[9px] text-gray-500 font-medium italic">Todos los ajustes se aplicarán al guardar</span>
-            </div>
-            <div className="h-8 w-px bg-slate-200 mx-2" />
-            <button 
-              onClick={handleDiscard}
-              className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-gray-600 hover:bg-slate-50 rounded-xl transition-all"
-            >
-              Descartar
-            </button>
-            <button 
-              onClick={handleSaveAll}
-              disabled={isSyncing}
-              className="px-6 py-2 bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
-            >
-              {isSyncing ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
-              Guardar Todo
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );
