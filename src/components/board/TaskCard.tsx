@@ -190,7 +190,7 @@ export function TaskCard({
                 <div className="flex items-center gap-1 text-indigo-500 font-black">
                   <Calendar size={10} strokeWidth={2.5} />
                   <span className="text-[9px] uppercase tracking-tighter">
-                    {format(new Date(task.due_date), "MMM d", { locale: es })}
+                    {format(new Date(task.due_date), "MMM d, HH:mm", { locale: es })}
                   </span>
                 </div>
               )}

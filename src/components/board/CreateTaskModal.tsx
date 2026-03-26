@@ -167,10 +167,21 @@ export function CreateTaskModal({
                 <Calendar size={12} /> Fecha límite
               </label>
               <input 
-                type="date"
+                type="datetime-local"
                 className="w-full bg-gray-50 border-none rounded-lg text-sm font-medium focus:ring-2 focus:ring-indigo-500"
                 value={dueDate}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDueDate(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                  let val = e.target.value;
+                  // If user picks a date but time part is empty/zeroed and we want 10am default
+                  // datetime-local usually forces a time, but if they just click a date in some pickers:
+                  if (val && !val.includes('T')) {
+                    val += 'T10:00';
+                  } else if (val && val.endsWith('T00:00')) {
+                    // If it defaults to midnight, change to 10am as requested
+                    val = val.replace('T00:00', 'T10:00');
+                  }
+                  setDueDate(val);
+                }}
               />
             </div>
           </div>

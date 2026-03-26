@@ -325,9 +325,15 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
                   <div className="flex items-center gap-2">
                     <span>•</span>
                     <input 
-                      type="date"
-                      value={task.due_date ? format(new Date(task.due_date), "yyyy-MM-dd") : ""}
-                      onChange={(e) => handleUpdateTask({ due_date: e.target.value })}
+                      type="datetime-local"
+                      value={task.due_date ? format(new Date(task.due_date), "yyyy-MM-dd'T'HH:mm") : ""}
+                      onChange={(e) => {
+                        let val = e.target.value;
+                        if (val && val.endsWith('T00:00')) {
+                           val = val.replace('T00:00', 'T10:00');
+                        }
+                        handleUpdateTask({ due_date: val || null });
+                      }}
                       className="bg-transparent border-none text-[10px] font-black uppercase tracking-widest text-indigo-600 focus:ring-0 p-0 cursor-pointer"
                     />
                   </div>
