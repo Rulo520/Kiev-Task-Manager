@@ -37,7 +37,10 @@ async function fetchGHLStaffUser(ghlUserId: string): Promise<GHLUser | null> {
       email: data.email || "",
       first_name: data.firstName || data.name?.split(" ")[0] || "",
       last_name: data.lastName || data.name?.split(" ").slice(1).join(" ") || "",
-      role: "agency",
+      // V12.9: Dynamically map GHL user types to our internal roles
+      // Agency-level users -> "agency"
+      // Sub-account (Location) level users -> "client"
+      role: data.roles?.type === "agency" ? "agency" : "client",
       location_id: data.locationId || null,
       profile_pic: data.profilePhoto || null,
     };
