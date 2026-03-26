@@ -96,7 +96,7 @@ export function Column({
       <div
         ref={setNodeRef}
         style={style}
-        className="opacity-30 bg-gray-100 border-2 border-indigo-500 rounded-2xl w-[320px] min-w-[320px] h-full"
+        className="opacity-30 bg-gray-100 border-2 border-indigo-500 rounded-2xl w-[300px] min-w-[300px] h-full"
       />
     );
   }
@@ -105,9 +105,9 @@ export function Column({
     <div
       ref={setNodeRef}
       style={style}
-      className={`bg-gray-50/50 rounded-[32px] p-6 w-[320px] min-w-[320px] flex flex-col max-h-full border border-gray-200/60 shadow-sm transition-shadow hover:shadow-md ${isPrivate ? 'border-amber-200/50' : ''}`}
+      className={`bg-[#ebedf0] rounded-2xl p-4 w-[300px] min-w-[300px] flex flex-col max-h-full border border-gray-300 shadow-md transition-shadow hover:shadow-lg ${isPrivate ? 'border-amber-300 ring-1 ring-amber-100' : ''}`}
     >
-      <div className="flex items-center justify-between mb-6 px-1">
+      <div className="flex items-center justify-between mb-4 px-1">
         <div className="flex items-center gap-3">
           {canEditColumn ? (
             <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition-colors">

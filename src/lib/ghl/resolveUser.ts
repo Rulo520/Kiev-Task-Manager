@@ -20,7 +20,21 @@ function ghlHeaders() {
   };
 }
 
-async function fetchGHLStaffUser(ghlUserId: string): Promise<GHLUser | null> {
+async function fetchLocationName(locationId: string): Promise<string | null> {
+  if (!locationId || !GHL_ACCESS_TOKEN) return null;
+  try {
+    const res = await fetch(`${GHL_API_BASE}/locations/${locationId}`, {
+      headers: ghlHeaders(),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.location?.name || data.name || null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchGHLStaffUser(ghlUserId: string): Promise<any | null> {
   try {
     const res = await fetch(`${GHL_API_BASE}/users/${ghlUserId}`, {
       headers: ghlHeaders(),
@@ -30,18 +44,16 @@ async function fetchGHLStaffUser(ghlUserId: string): Promise<GHLUser | null> {
     if (!res.ok) return null;
 
     const data = await res.json();
+    const company_name = data.locationId ? await fetchLocationName(data.locationId) : null;
 
     return {
-      id: "", // Filled after DB upsert
       ghl_user_id: data.id,
       email: data.email || "",
       first_name: data.firstName || data.name?.split(" ")[0] || "",
       last_name: data.lastName || data.name?.split(" ").slice(1).join(" ") || "",
-      // V12.9: Dynamically map GHL user types to our internal roles
-      // Agency-level users -> "agency"
-      // Sub-account (Location) level users -> "client"
       role: data.roles?.type === "agency" ? "agency" : "client",
       location_id: data.locationId || null,
+      company_name: company_name,
       profile_pic: data.profilePhoto || null,
     };
   } catch {
@@ -49,7 +61,7 @@ async function fetchGHLStaffUser(ghlUserId: string): Promise<GHLUser | null> {
   }
 }
 
-async function fetchGHLContact(ghlContactId: string): Promise<GHLUser | null> {
+async function fetchGHLContact(ghlContactId: string): Promise<any | null> {
   try {
     const res = await fetch(`${GHL_API_BASE}/contacts/${ghlContactId}`, {
       headers: ghlHeaders(),
@@ -60,15 +72,16 @@ async function fetchGHLContact(ghlContactId: string): Promise<GHLUser | null> {
 
     const data = await res.json();
     const contact = data.contact || data;
+    const company_name = contact.locationId ? await fetchLocationName(contact.locationId) : null;
 
     return {
-      id: "", // Filled after DB upsert
       ghl_user_id: contact.id,
       email: contact.email || "",
       first_name: contact.firstName || contact.name?.split(" ")[0] || "Contacto",
       last_name: contact.lastName || contact.name?.split(" ").slice(1).join(" ") || "",
       role: "client",
       location_id: contact.locationId || null,
+      company_name: company_name,
       profile_pic: null,
     };
   } catch {
@@ -76,43 +89,28 @@ async function fetchGHLContact(ghlContactId: string): Promise<GHLUser | null> {
   }
 }
 
-// ------------------------------------------------------------------
-// Main export: resolveUser
-//
-// Given a raw GHL ID (which can be either a userId or a contactId),
-// this function:
-//   1. Tries to find the user in Supabase (fast path / cache check)
-//   2. If not found, tries GHL /users/{id} (agency staff)
-//   3. If not a staff user, tries GHL /contacts/{id} (client contact)
-//   4. Upserts the result into Supabase and returns the User
-//   5. Returns null if GHL doesn't recognize the ID either
-// ------------------------------------------------------------------
-
-export async function resolveUser(ghlId: string, preferredRole?: "agency" | "client"): Promise<GHLUser | null> {
+export async function resolveUser(ghlId: string, preferredRole?: "agency" | "client"): Promise<any | null> {
   if (!ghlId) return null;
 
   const supabase = getAdminClient();
 
-  // 1. First, find if they exist by GHL ID or Email (Avoid UUID type errors on ID column)
   const { data: existingUser } = await supabase
     .from("users")
     .select("*")
     .or(`ghl_user_id.eq.${ghlId},email.eq.${ghlId}`)
     .maybeSingle();
 
-  // If found and the role matches, we can use the fast path (unless it's stake)
   if (existingUser && (!preferredRole || existingUser.role === preferredRole)) {
     const lastUpdated = new Date(existingUser.updated_at || 0).getTime();
     if (Date.now() - lastUpdated > 24 * 60 * 60 * 1000 && GHL_ACCESS_TOKEN) {
       refreshUserInBackground(existingUser.ghl_user_id, existingUser.role);
     }
-    return existingUser as GHLUser;
+    return existingUser;
   }
 
-  // 2. Not found OR role mismatch — ask GHL
-  if (!GHL_ACCESS_TOKEN) return existingUser ? (existingUser as GHLUser) : null;
+  if (!GHL_ACCESS_TOKEN) return existingUser || null;
 
-  let ghlProfile: GHLUser | null = null;
+  let ghlProfile: any | null = null;
   if (preferredRole === "client") {
     ghlProfile = await fetchGHLContact(ghlId);
     if (!ghlProfile) ghlProfile = await fetchGHLStaffUser(ghlId);
@@ -121,10 +119,8 @@ export async function resolveUser(ghlId: string, preferredRole?: "agency" | "cli
     if (!ghlProfile) ghlProfile = await fetchGHLContact(ghlId);
   }
 
-  if (!ghlProfile) return existingUser ? (existingUser as GHLUser) : null;
+  if (!ghlProfile) return existingUser || null;
 
-  // 3. Save the findings
-  // If user existed, we UPDATE specifically to avoid conflicts and ensure role change
   if (existingUser) {
     const { data: updated, error } = await supabase
       .from("users")
@@ -133,8 +129,9 @@ export async function resolveUser(ghlId: string, preferredRole?: "agency" | "cli
         email: ghlProfile.email,
         first_name: ghlProfile.first_name,
         last_name: ghlProfile.last_name,
-        role: ghlProfile.role, // Force the correct role from GHL
+        role: ghlProfile.role,
         location_id: ghlProfile.location_id,
+        company_name: ghlProfile.company_name,
         profile_pic: ghlProfile.profile_pic,
         updated_at: new Date().toISOString(),
       })
@@ -144,12 +141,11 @@ export async function resolveUser(ghlId: string, preferredRole?: "agency" | "cli
 
     if (error) {
       console.error("[resolveUser] Update failed:", error.message);
-      return existingUser as GHLUser;
+      return existingUser;
     }
-    return updated as GHLUser;
+    return updated;
   }
 
-  // If new, we INSERT (original behavior)
   const { data: inserted, error } = await supabase
     .from("users")
     .insert([{
@@ -159,6 +155,7 @@ export async function resolveUser(ghlId: string, preferredRole?: "agency" | "cli
       last_name: ghlProfile.last_name,
       role: ghlProfile.role,
       location_id: ghlProfile.location_id,
+      company_name: ghlProfile.company_name,
       profile_pic: ghlProfile.profile_pic,
       updated_at: new Date().toISOString(),
     }])
@@ -166,21 +163,16 @@ export async function resolveUser(ghlId: string, preferredRole?: "agency" | "cli
     .single();
 
   if (error) {
-    // If insert fails (maybe concurrent?), try one last lookup
     const { data: finalRetry } = await supabase
       .from("users")
       .select("*")
       .eq("ghl_user_id", ghlProfile.ghl_user_id)
       .maybeSingle();
-    return (finalRetry as GHLUser) || null;
+    return finalRetry || null;
   }
 
-  return inserted as GHLUser;
+  return inserted;
 }
-
-// ------------------------------------------------------------------
-// Background refresh helper (fire-and-forget)
-// ------------------------------------------------------------------
 
 async function refreshUserInBackground(ghlUserId: string, role: string): Promise<void> {
   try {
@@ -197,12 +189,13 @@ async function refreshUserInBackground(ghlUserId: string, role: string): Promise
           last_name: fresh.last_name,
           profile_pic: fresh.profile_pic,
           location_id: fresh.location_id,
+          company_name: fresh.company_name,
           updated_at: new Date().toISOString(),
         })
         .eq("ghl_user_id", ghlUserId);
     }
   } catch (e) {
-    // Never block the render — just log silently
     console.warn("[resolveUser] Background refresh failed:", e);
   }
 }
+

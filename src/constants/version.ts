@@ -1,5 +1,5 @@
 export const APP_NAME = "Kiev Platform";
-export const APP_VERSION = "V14.0";
+export const APP_VERSION = "V15.0";
 /*
   V13.1 - Handshake & Clean URL
   V13.2 - In-App Notifications Base
@@ -11,6 +11,9 @@ export const APP_VERSION = "V14.0";
   V13.8 - Deadline Time Support (10 AM default)
   V13.9 - Task Creation Metadata (Time + Creator)
   V14.0 - Deadline Color Coding (Red/Orange/Blue)
+  V14.5 - Accumulative Filters & Client Attribution (Title | Client)
+  V14.6 - Differentiated Message Counts (Public/Internal Icons)
+  V15.0 - Visual Overhaul (High Contrast & Compact Layout)
 */
 
 

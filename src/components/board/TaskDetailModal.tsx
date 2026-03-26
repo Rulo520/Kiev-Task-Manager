@@ -308,7 +308,14 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
                       />
                     </div>
                   ) : (
-                    <h2 className={`text-3xl font-black text-gray-800 leading-tight font-sans tracking-tighter mt-1.5 ${isLastColumn ? 'line-through text-gray-400 opacity-60 decoration-emerald-500/50 decoration-2' : ''}`}>{task.title}</h2>
+                    <h2 className={`text-3xl font-black text-gray-800 leading-tight font-sans tracking-tighter mt-1.5 ${isLastColumn ? 'line-through text-gray-400 opacity-60 decoration-emerald-500/50 decoration-2' : ''}`}>
+                      {task.title}
+                      {task.creator?.company_name && (
+                        <span className="text-indigo-400 opacity-60 ml-2">
+                          | {task.creator.company_name}
+                        </span>
+                      )}
+                    </h2>
                   )}
                 </div>
               </div>
@@ -316,7 +323,9 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
               <div className="flex flex-wrap items-center gap-4 mt-4 text-xs font-medium text-gray-400">
                 <div className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-indigo-500" />
-                  Creado por {task.creator?.first_name || "Agencia"}
+                  Creado por {task.creator?.first_name || "Agencia"} {task.creator?.company_name && (
+                    <span className="opacity-70">({task.creator.company_name})</span>
+                  )}
                 </div>
                 <span>•</span>
                 <div>{format(new Date(task.created_at), "dd MMMM yyyy", { locale: es })}</div>

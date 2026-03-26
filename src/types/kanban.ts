@@ -7,6 +7,7 @@ export type User = {
   profile_pic: string | null;
   role: Role;
   location_id: string | null;
+  company_name: string | null;
 };
 
 export type Label = {

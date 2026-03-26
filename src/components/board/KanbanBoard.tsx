@@ -51,8 +51,9 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
   
   // Filtering state
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterAssignee, setFilterAssignee] = useState<string>("all");
-  const [filterLabel, setFilterLabel] = useState<string>("all");
+  const [filterAssignees, setFilterAssignees] = useState<string[]>([]);
+  const [filterLabels, setFilterLabels] = useState<string[]>([]);
+  const [filterClients, setFilterClients] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
 
   const supabase = useRef(createClient()).current;
@@ -88,10 +89,13 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
   const filteredTasks = tasks.filter(task => {
     const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                          task.description?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesAssignee = filterAssignee === "all" || task.assignees.some(a => a.user.id === filterAssignee);
-    const matchesLabel = filterLabel === "all" || task.labels.some((l: { label: { id: string } }) => l.label.id === filterLabel);
     
-    return matchesSearch && matchesAssignee && matchesLabel;
+    // Accumulative (OR within category, AND across categories)
+    const matchesAssignee = filterAssignees.length === 0 || task.assignees.some(a => filterAssignees.includes(a.user.id));
+    const matchesLabel = filterLabels.length === 0 || task.labels.some((l: any) => filterLabels.includes(l.label.id));
+    const matchesClient = filterClients.length === 0 || (task.creator?.company_name && filterClients.includes(task.creator.company_name));
+    
+    return matchesSearch && matchesAssignee && matchesLabel && matchesClient;
   });
 
   // --- REALTIME ---
@@ -143,7 +147,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
         setShowFilters(prev => !prev);
       }
       if (e.key.toLowerCase() === 'y') {
-        setFilterAssignee(currentUser.id);
+        setFilterAssignees([currentUser.id]);
         setShowFilters(true);
       }
     };
@@ -588,9 +592,9 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-50/50">
+    <div className="flex flex-col h-full bg-[#1a202c]">
       {/* TOOLBAR */}
-      <div className="px-8 pb-6 pt-2 flex flex-col md:flex-row gap-4 items-center justify-between">
+      <div className="px-8 pb-6 pt-4 flex flex-col md:flex-row gap-4 items-center justify-between bg-[#1a202c]/50 backdrop-blur-sm border-b border-white/5">
         {syncError && (
           <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] bg-red-600/90 text-white px-6 py-3 rounded-full flex items-center gap-3 backdrop-blur-md shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300">
             <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
@@ -644,44 +648,78 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
       {showFilters && (
         <div className="px-8 pb-6 animate-in fade-in slide-in-from-top-2 duration-300">
           <div className="bg-white/70 backdrop-blur-md rounded-[32px] p-6 border border-white shadow-xl flex flex-wrap gap-8">
+            {/* Multi-select Responsables */}
             <div className="space-y-3">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Filtrar por Responsable</label>
-              <div className="relative">
-                <UserIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                <select 
-                  value={filterAssignee}
-                  onChange={(e) => setFilterAssignee(e.target.value)}
-                  className="bg-white border border-gray-100 rounded-xl py-2 pl-9 pr-6 text-[11px] font-bold text-gray-700 focus:ring-2 focus:ring-indigo-500/20 outline-none appearance-none min-w-[180px]"
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Responsables</label>
+              <div className="flex flex-wrap gap-2 max-w-[300px]">
+                <button 
+                  onClick={() => setFilterAssignees([])}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${filterAssignees.length === 0 ? "bg-indigo-600 text-white shadow-md shadow-indigo-100" : "bg-white text-gray-400 border border-gray-100 hover:border-indigo-200"}`}
                 >
-                  <option value="all">Cualquier usuario</option>
-                  {(role === 'agency' ? agencyUsers : [currentUser]).map(u => (
-                    <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
-                  ))}
-                </select>
+                  Todos
+                </button>
+                {(role === 'agency' ? agencyUsers : [currentUser]).map(u => (
+                  <button 
+                    key={u.id}
+                    onClick={() => setFilterAssignees(prev => prev.includes(u.id) ? prev.filter(id => id !== u.id) : [...prev, u.id])}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${filterAssignees.includes(u.id) ? "bg-indigo-600 text-white shadow-md shadow-indigo-100" : "bg-white text-gray-400 border border-gray-100 hover:border-indigo-200"}`}
+                  >
+                    {u.first_name}
+                  </button>
+                ))}
               </div>
             </div>
 
+            {/* Multi-select Etiquetas */}
             <div className="space-y-3">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Filtrar por Etiqueta</label>
-              <div className="relative">
-                <Tag size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                <select 
-                  value={filterLabel}
-                  onChange={(e) => setFilterLabel(e.target.value)}
-                  className="bg-white border border-gray-100 rounded-xl py-2 pl-9 pr-6 text-[11px] font-bold text-gray-700 focus:ring-2 focus:ring-indigo-500/20 outline-none appearance-none min-w-[180px]"
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Etiquetas</label>
+              <div className="flex flex-wrap gap-2 max-w-[300px]">
+                <button 
+                  onClick={() => setFilterLabels([])}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${filterLabels.length === 0 ? "bg-indigo-600 text-white shadow-md shadow-indigo-100" : "bg-white text-gray-400 border border-gray-100 hover:border-indigo-200"}`}
                 >
-                  <option value="all">Cualquier etiqueta</option>
-                  {labels.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-                </select>
+                  Todas
+                </button>
+                {labels.map(l => (
+                  <button 
+                    key={l.id}
+                    onClick={() => setFilterLabels(prev => prev.includes(l.id) ? prev.filter(id => id !== l.id) : [...prev, l.id])}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${filterLabels.includes(l.id) ? "bg-indigo-600 text-white shadow-md shadow-indigo-100" : "bg-white text-gray-400 border border-gray-100 hover:border-indigo-200"}`}
+                  >
+                    {l.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Multi-select Clientes */}
+            <div className="space-y-3">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Clientes (GHL)</label>
+              <div className="flex flex-wrap gap-2 max-w-[400px]">
+                <button 
+                  onClick={() => setFilterClients([])}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${filterClients.length === 0 ? "bg-indigo-600 text-white shadow-md shadow-indigo-100" : "bg-white text-gray-400 border border-gray-100 hover:border-indigo-200"}`}
+                >
+                  Todos
+                </button>
+                {Array.from(new Set(tasks.map(t => t.creator?.company_name).filter(Boolean))).map(clientName => (
+                  <button 
+                    key={clientName!}
+                    onClick={() => setFilterClients(prev => prev.includes(clientName!) ? prev.filter(c => c !== clientName) : [...prev, clientName!])}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${filterClients.includes(clientName!) ? "bg-indigo-600 text-white shadow-md shadow-indigo-100" : "bg-white text-gray-400 border border-gray-100 hover:border-indigo-200"}`}
+                  >
+                    {clientName}
+                  </button>
+                ))}
               </div>
             </div>
 
             <div className="flex-1 flex items-end justify-end">
               <button 
-                onClick={() => { setFilterAssignee("all"); setFilterLabel("all"); setSearchQuery(""); }}
-                className="text-xs font-black text-indigo-600 hover:text-indigo-700 underline underline-offset-4 decoration-2 decoration-indigo-200"
+                onClick={() => { setFilterAssignees([]); setFilterLabels([]); setFilterClients([]); setSearchQuery(""); }}
+                className="text-xs font-black text-indigo-600 hover:text-indigo-700 underline underline-offset-4 decoration-2 decoration-indigo-200 transition-all hover:scale-105"
               >
-                Limpiar filtros
+                Limpiar todo
               </button>
             </div>
           </div>

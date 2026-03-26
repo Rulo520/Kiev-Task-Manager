@@ -180,7 +180,7 @@ export function Gatekeeper({ debug, isIframe, ghlId, sessionUserId, searchParams
                         <span className="text-slate-500">PARAMS:</span> {JSON.stringify(searchParams)}
                       </p>
                       <p className="pt-2 border-t border-white/5 mt-2 text-rose-400 font-bold">
-                        VERSIÓN: V12.1 (Debug Fix)
+                        VERSIÓN: {APP_VERSION} (Active)
                       </p>
                     </div>
                   </div>
