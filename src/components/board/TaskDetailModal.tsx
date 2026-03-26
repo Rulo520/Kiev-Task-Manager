@@ -28,6 +28,7 @@ interface TaskDetailModalProps {
 
 export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, currentUser, isFirstColumn, agencyUsers = [], availableLabels = [], onLabelCreated, isLastColumn = false, onToggleComplete, onUpdateTask }: TaskDetailModalProps) {
   const [task, setTask] = useState<Task>(initialTask);
+  const [serverTask, setServerTask] = useState<Task>(initialTask);
   const [isLoading, setIsLoading] = useState(true);
   const [activeChat, setActiveChat] = useState<"external" | "internal">("external");
   const [newChecklistTitle, setNewChecklistTitle] = useState("");
@@ -39,6 +40,7 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
   const [isEditingDesc, setIsEditingDesc] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [tempAssigneeIds, setTempAssigneeIds] = useState<string[]>(initialTask.assignees?.map(a => a.user.id) || []);
+  const [tempLabelIds, setTempLabelIds] = useState<string[]>(initialTask.labels?.map(l => l.label.id) || []);
 
   // Tag state
   const [isCreatingLabel, setIsCreatingLabel] = useState(false);
@@ -55,7 +57,9 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
       if (!res.ok) throw new Error("Failed to fetch task details");
       const data = await res.json();
       setTask(data);
+      setServerTask(data);
       setTempAssigneeIds(data.assignees?.map((a: any) => a.user.id) || []);
+      setTempLabelIds(data.labels?.map((l: any) => l.label.id) || []);
     } catch (error) {
       console.error(error);
     } finally {
@@ -69,18 +73,35 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
     }
   }, [isOpen, fetchTaskDetails]);
 
+  const isDirty = 
+    task.title !== serverTask.title ||
+    (task.description || "") !== (serverTask.description || "") ||
+    task.due_date !== serverTask.due_date ||
+    JSON.stringify(tempAssigneeIds.sort()) !== JSON.stringify((serverTask.assignees?.map(a => a.user.id) || []).sort()) ||
+    JSON.stringify(tempLabelIds.sort()) !== JSON.stringify((serverTask.labels?.map(l => l.label.id) || []).sort());
+
   // V9.4 - Esc Key to Close
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        onClose();
+        handleConfirmClose();
       }
     };
     if (isOpen) {
       window.addEventListener("keydown", handleEsc);
     }
     return () => window.removeEventListener("keydown", handleEsc);
-  }, [isOpen, onClose]);
+  }, [isOpen, isDirty]);
+
+  const handleConfirmClose = () => {
+    if (isDirty) {
+      if (window.confirm("Tienes cambios sin guardar. ¿Deseas descartarlos?")) {
+        onClose();
+      }
+    } else {
+      onClose();
+    }
+  };
 
   // Realtime Subscriptions
   useEffect(() => {
@@ -255,11 +276,31 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
       if (res.ok) {
         const updated = await res.json();
         setTask(updated);
+        setServerTask(updated);
         onUpdateTask?.(updated);
       }
     } catch (err) { console.error(err); }
     finally { setIsSyncing(false); }
   };
+
+  const handleSaveAll = async () => {
+    await handleUpdateTask({
+      title: task.title,
+      description: task.description,
+      due_date: task.due_date,
+      assignees: tempAssigneeIds as any,
+      labels: tempLabelIds as any
+    });
+  };
+
+  const handleDiscard = () => {
+    setTask(serverTask);
+    setTempAssigneeIds(serverTask.assignees?.map(a => a.user.id) || []);
+    setTempLabelIds(serverTask.labels?.map(l => l.label.id) || []);
+    setIsEditingTitle(false);
+    setIsEditingDesc(false);
+  };
+
 
   // Checklist Progress
   const completedItems = task.checklists?.filter(i => i.is_completed).length || 0;
@@ -268,10 +309,10 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={handleConfirmClose} />
       
       <div className="relative bg-white w-full max-w-4xl max-h-[90vh] rounded-[32px] shadow-2xl overflow-hidden flex flex-col md:flex-row border border-indigo-100">
-        <button onClick={onClose} className="absolute right-6 top-6 z-10 p-2 text-gray-400 hover:text-indigo-600 bg-white rounded-full shadow-lg border border-gray-100 transition-all">
+        <button onClick={handleConfirmClose} className="absolute right-6 top-6 z-10 p-2 text-gray-400 hover:text-indigo-600 bg-white rounded-full shadow-lg border border-gray-100 transition-all">
           <X size={20} />
         </button>
 
@@ -305,7 +346,6 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
                         type="text"
                         value={task.title}
                         onChange={(e) => setTask({...task, title: e.target.value})}
-                        onBlur={() => handleUpdateTask({ title: task.title })}
                         className={`w-full text-3xl font-black text-gray-800 leading-tight bg-transparent border-none focus:ring-2 focus:ring-indigo-500/10 rounded-xl px-0 hover:bg-slate-50 transition-all font-sans tracking-tighter ${isLastColumn ? 'line-through text-gray-400 opacity-60 decoration-emerald-500/50 decoration-2' : ''}`}
                       />
                     </div>
@@ -343,7 +383,7 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
                         if (val && val.endsWith('T00:00')) {
                            val = val.replace('T00:00', 'T10:00');
                         }
-                        handleUpdateTask({ due_date: val || null });
+                        setTask({ ...task, due_date: val || null });
                       }}
                       className="bg-transparent border-none text-[10px] font-black uppercase tracking-widest text-indigo-600 focus:ring-0 p-0 cursor-pointer"
                     />
@@ -375,8 +415,7 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
               {isEditingDesc && role === 'agency' ? (
                 <textarea 
                   value={task.description || ""}
-                  onChange={(e) => setTask({...task, description: e.target.value})}
-                  onBlur={() => handleUpdateTask({ description: task.description })}
+                  onChange={(e) => setTask({ ...task, description: e.target.value })}
                   placeholder="Añadir una descripción detallada..."
                   className="w-full text-gray-600 bg-slate-50/50 p-6 rounded-2xl border border-dashed border-gray-200 text-sm leading-relaxed focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all min-h-[150px] resize-none overflow-y-auto"
                   autoFocus
@@ -438,8 +477,7 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
                           onLabelCreated?.(newLabel);
                           
                           // Also directly assign it to this task
-                          const currentLabels = task.labels?.map(l => l.label.id) || [];
-                          handleUpdateTask({ labels: [...currentLabels, newLabel.id] } as any);
+                          setTempLabelIds(prev => [...prev, newLabel.id]);
 
                           setNewLabelName("");
                           setIsCreatingLabel(false);
@@ -460,17 +498,17 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
               {availableLabels.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   {availableLabels.map(label => {
-                    const isSelected = task.labels?.some(l => l.label.id === label.id);
+                    const isSelected = tempLabelIds.includes(label.id);
                     return (
                       <button
                         key={label.id}
                         onClick={() => {
                           if (!canEdit) return;
-                          const currentLabels = task.labels?.map(l => l.label.id) || [];
+                          const currentLabels = tempLabelIds;
                           const newLabels = isSelected
                             ? currentLabels.filter(id => id !== label.id)
                             : [...currentLabels, label.id];
-                          handleUpdateTask({ labels: newLabels } as any);
+                          setTempLabelIds(newLabels);
                         }}
                         disabled={!canEdit}
                         className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter border transition-all ${
@@ -633,17 +671,9 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
                   <h4 className="text-sm font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
                     Miembros Asignados
                   </h4>
-                  <button
-                    onClick={() => handleUpdateTask({ assignees: tempAssigneeIds as any })}
-                    disabled={isSyncing}
-                    className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                      JSON.stringify(tempAssigneeIds.sort()) !== JSON.stringify((task.assignees?.map(a => a.user.id) || []).sort())
-                        ? "bg-indigo-600 text-white shadow-lg shadow-indigo-100 hover:scale-105 active:scale-95"
-                        : "bg-slate-100 text-slate-400 cursor-not-allowed"
-                    }`}
-                  >
-                    {isSyncing ? "Guardando..." : "Guardar Miembros"}
-                  </button>
+                  {isDirty && JSON.stringify(tempAssigneeIds.sort()) !== JSON.stringify((serverTask.assignees?.map(a => a.user.id) || []).sort()) && (
+                    <span className="text-[9px] font-black uppercase tracking-widest text-amber-500 animate-pulse">Cambios pendientes</span>
+                  )}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {agencyUsers.map(user => {
@@ -777,6 +807,31 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
             </button>
           </form>
         </div>
+
+        {/* Sticky Global Footer for Save/Cancel */}
+        {isDirty && (
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 bg-white/80 backdrop-blur-md px-6 py-3 rounded-2xl shadow-2xl border border-indigo-100 animate-in fade-in slide-in-from-bottom-4 duration-300 z-[110]">
+            <div className="flex flex-col">
+              <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600">Tienes cambios sin guardar</span>
+              <span className="text-[9px] text-gray-500 font-medium italic">Todos los ajustes se aplicarán al guardar</span>
+            </div>
+            <div className="h-8 w-px bg-slate-200 mx-2" />
+            <button 
+              onClick={handleDiscard}
+              className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-gray-600 hover:bg-slate-50 rounded-xl transition-all"
+            >
+              Descartar
+            </button>
+            <button 
+              onClick={handleSaveAll}
+              disabled={isSyncing}
+              className="px-6 py-2 bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+            >
+              {isSyncing ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
+              Guardar Todo
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
