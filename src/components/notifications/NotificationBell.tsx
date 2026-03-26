@@ -48,7 +48,13 @@ export default function NotificationBell({ userId }: NotificationBellProps) {
           const newNotif = payload.new as Notification;
           setNotifications((prev) => [newNotif, ...prev]);
           playNotificationSound();
+
+          // V13.5 - Proactive Sync Fallback
+          if (newNotif.task_id) {
+            window.dispatchEvent(new CustomEvent('sync-task', { detail: { taskId: newNotif.task_id } }));
+          }
         }
+
       )
       .on(
         "postgres_changes",

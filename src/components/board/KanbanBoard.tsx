@@ -275,6 +275,27 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
     return () => window.removeEventListener("open-task-detail", handleOpenTask);
   }, [fetchTaskDetails]);
 
+  // V13.5 - Explicit Sync from Notification Fallback
+  useEffect(() => {
+    const handleSyncTask = async (e: any) => {
+      const { taskId } = e.detail;
+      const updatedTask = await fetchTaskDetailsWithRetry(taskId);
+      if (updatedTask) {
+        setTasks((prev) => {
+          const otherTasks = prev.filter(t => t.id !== taskId);
+          return [updatedTask, ...otherTasks].sort((a, b) => {
+            if (a.position !== b.position) return a.position - b.position;
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+          });
+        });
+      }
+    };
+
+    window.addEventListener("sync-task", handleSyncTask);
+    return () => window.removeEventListener("sync-task", handleSyncTask);
+  }, [fetchTaskDetailsWithRetry]);
+
+
 
 
   // --- DND HANDLERS ---
