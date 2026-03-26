@@ -256,6 +256,21 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
           setColumns(prev => prev.filter(c => c.id === payload.old.id));
         }
       })
+      .on("broadcast", { event: "TASK_SAVED" }, async ({ payload }) => {
+        if (payload.taskId) {
+          console.log("Realtime: TASK_SAVED broadcast received for", payload.taskId);
+          const updatedTask = await fetchTaskDetailsWithRetry(payload.taskId);
+          if (updatedTask) {
+            setTasks(prev => {
+              const otherTasks = prev.filter(t => t.id !== payload.taskId);
+              return [...otherTasks, updatedTask].sort((a, b) => {
+                  if (a.position !== b.position) return a.position - b.position;
+                  return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+              });
+            });
+          }
+        }
+      })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };

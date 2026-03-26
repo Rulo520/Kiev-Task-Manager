@@ -140,6 +140,17 @@ export async function POST(req: Request) {
       .eq("id", task.id)
       .single();
 
+    // --- BROADCAST: FORCE SYNC (V18.0) ---
+    try {
+      await supabase.channel('kanban-global-sync').send({
+        type: 'broadcast',
+        event: 'TASK_SAVED',
+        payload: { taskId: task.id }
+      });
+    } catch (err) {
+      console.error("Broadcast error:", err);
+    }
+
     return NextResponse.json(fullTask || task, { 
       status: 201,
       headers: {
@@ -377,6 +388,18 @@ export async function PUT(req: Request) {
       .single();
 
     if (fetchError) throw fetchError;
+    
+    // --- BROADCAST: FORCE SYNC (V18.0) ---
+    // This provides a definitive signal that a logical "Save" has finished
+    try {
+      await supabase.channel('kanban-global-sync').send({
+        type: 'broadcast',
+        event: 'TASK_SAVED',
+        payload: { taskId: id }
+      });
+    } catch (err) {
+      console.error("Broadcast error:", err);
+    }
 
     return NextResponse.json(fullUpdatedTask, {
       headers: {
