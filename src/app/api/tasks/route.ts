@@ -184,7 +184,12 @@ export async function PUT(req: Request) {
       if (existingTask.created_by !== authUser.id) {
         return NextResponse.json({ error: "Clients can only edit their own tasks" }, { status: 403 });
       }
-      // 2. Clients cannot move tasks out of the first column
+      // 2. Must be in the first column
+      const { data: firstCol } = await supabase.from("columns").select("id").order("position", { ascending: true }).limit(1).single();
+      if (existingTask.column_id !== firstCol?.id) {
+        return NextResponse.json({ error: "Clients can only edit tasks in the first column" }, { status: 403 });
+      }
+      // 3. Clients cannot move tasks
       if (column_id && column_id !== existingTask.column_id) {
         return NextResponse.json({ error: "Clients cannot move tasks" }, { status: 403 });
       }

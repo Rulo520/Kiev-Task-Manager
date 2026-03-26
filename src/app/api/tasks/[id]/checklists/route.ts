@@ -17,12 +17,20 @@ export async function POST(
 
     const { title, position } = await req.json();
 
-    // Permissions: Agency or Task Owner can add checklist items
-    const { data: task } = await supabase.from("tasks").select("created_by").eq("id", task_id).single();
+    // Permissions: Agency or Task Owner in first column
+    const { data: task } = await supabase.from("tasks").select("created_by, column_id").eq("id", task_id).single();
     if (!task) return NextResponse.json({ error: "Task not found" }, { status: 404 });
 
-    if (authUser.role !== "agency" && task.created_by !== authUser.id) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (authUser.role !== "agency") {
+      // 1. Must be the owner
+      if (task.created_by !== authUser.id) {
+         return NextResponse.json({ error: "Forbidden: Not the task owner" }, { status: 403 });
+      }
+      // 2. Must be in the first column
+      const { data: firstCol } = await supabase.from("columns").select("id").order("position", { ascending: true }).limit(1).single();
+      if (task.column_id !== firstCol?.id) {
+         return NextResponse.json({ error: "Forbidden: Tasks can only be edited in the first column" }, { status: 403 });
+      }
     }
 
     const { data, error } = await supabase

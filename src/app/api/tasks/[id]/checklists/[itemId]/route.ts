@@ -19,18 +19,25 @@ export async function PUT(
     const { title, is_completed, position } = body;
 
     // Permissions: Clients can toggle completion ONLY on their own tasks (checked via join)
-    // For simplicity, we check if the task allows client toggle or if user is agency
     const { data: item } = await supabase
       .from("task_checklists")
-      .select("task_id, tasks(created_by)")
+      .select("task_id, tasks(created_by, column_id)")
       .eq("id", itemId)
       .single();
 
     if (!item) return NextResponse.json({ error: "Item not found" }, { status: 404 });
 
     const taskData: any = item.tasks;
-    if (authUser.role !== "agency" && taskData.created_by !== authUser.id) {
-       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (authUser.role !== "agency") {
+      // 1. Must be the owner
+      if (taskData.created_by !== authUser.id) {
+         return NextResponse.json({ error: "Forbidden: Not the task owner" }, { status: 403 });
+      }
+      // 2. Must be in the first column
+      const { data: firstCol } = await supabase.from("columns").select("id").order("position", { ascending: true }).limit(1).single();
+      if (taskData.column_id !== firstCol?.id) {
+         return NextResponse.json({ error: "Forbidden: Tasks can only be edited in the first column" }, { status: 403 });
+      }
     }
 
     const updateData: any = {};
@@ -67,15 +74,23 @@ export async function DELETE(
 
     const { data: item } = await supabase
       .from("task_checklists")
-      .select("task_id, tasks(created_by)")
+      .select("task_id, tasks(created_by, column_id)")
       .eq("id", itemId)
       .single();
 
     if (!item) return NextResponse.json({ error: "Item not found" }, { status: 404 });
 
     const taskData: any = item.tasks;
-    if (authUser.role !== "agency" && taskData.created_by !== authUser.id) {
-       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (authUser.role !== "agency") {
+      // 1. Must be the owner
+      if (taskData.created_by !== authUser.id) {
+         return NextResponse.json({ error: "Forbidden: Not the task owner" }, { status: 403 });
+      }
+      // 2. Must be in the first column
+      const { data: firstCol } = await supabase.from("columns").select("id").order("position", { ascending: true }).limit(1).single();
+      if (taskData.column_id !== firstCol?.id) {
+         return NextResponse.json({ error: "Forbidden: Tasks can only be edited in the first column" }, { status: 403 });
+      }
     }
 
     const { error } = await supabase.from("task_checklists").delete().eq("id", itemId);
