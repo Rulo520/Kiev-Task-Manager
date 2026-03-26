@@ -195,7 +195,7 @@ export function TaskCard({
                 </div>
               )}
               <div className="text-[8px] font-black text-slate-300 uppercase tracking-widest">
-                {format(new Date(task.created_at), "dd MMM")}
+                {format(new Date(task.created_at), "dd MMM, HH:mm")}
               </div>
             </div>
             
