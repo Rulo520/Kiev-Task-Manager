@@ -460,7 +460,7 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
                 <h4 className="text-sm font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
                   <Tag size={16} /> Etiquetas
                 </h4>
-                {canEdit && (
+                {role === 'agency' && (
                   <button 
                     onClick={() => setIsCreatingLabel(!isCreatingLabel)}
                     className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-2 py-1 rounded-md transition-colors"
@@ -688,8 +688,7 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
                 </form>
               )}
             </div>
-            {/* V9.4 - Members / Assignees (Agency Only) - Moved to bottom and batch-saved */}
-            {canEdit && (
+            {role === 'agency' && (
               <div className="pt-8 border-t border-gray-100 space-y-4">
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
