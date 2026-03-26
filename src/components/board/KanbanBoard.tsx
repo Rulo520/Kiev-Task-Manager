@@ -817,8 +817,8 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
           task={detailTask}
           role={role}
           currentUser={currentUser}
-          isFirstColumn={columns[0]?.id === detailTask.column_id}
-          isLastColumn={columns[columns.length - 1]?.id === detailTask.column_id}
+          isFirstColumn={columns.length > 0 && [...columns].sort((a,b) => a.position - b.position)[0].id === detailTask.column_id}
+          isLastColumn={columns.length > 0 && [...columns].sort((a,b) => a.position - b.position)[columns.length - 1].id === detailTask.column_id}
           onToggleComplete={handleToggleComplete}
           agencyUsers={agencyUsers}
           availableLabels={labels}

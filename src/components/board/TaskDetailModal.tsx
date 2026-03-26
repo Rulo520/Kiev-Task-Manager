@@ -172,7 +172,7 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
   if (!isOpen) return null;
 
   // --- PERMISSIONS (V8.0) ---
-  const canEdit = role === 'agency' || (role === 'client' && isFirstColumn && task.created_by === currentUser.id);
+  const canEdit = role === 'agency' || (role === 'client' && isFirstColumn && String(task.created_by) === String(currentUser.id));
 
   const handleAddChecklistItem = async (e: React.FormEvent) => {
     e.preventDefault();
