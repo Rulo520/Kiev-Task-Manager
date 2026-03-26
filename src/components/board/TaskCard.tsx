@@ -186,14 +186,26 @@ export function TaskCard({
         <div className="pt-3 flex flex-col gap-2.5 border-t border-slate-50">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              {task.due_date && (
-                <div className="flex items-center gap-1 text-indigo-500 font-black">
-                  <Calendar size={10} strokeWidth={2.5} />
-                  <span className="text-[9px] uppercase tracking-tighter">
-                    {format(new Date(task.due_date), "MMM d, HH:mm", { locale: es })}
-                  </span>
-                </div>
-              )}
+              {task.due_date && (() => {
+                const now = new Date();
+                const due = new Date(task.due_date);
+                const diff = due.getTime() - now.getTime();
+                const isOverdue = diff < 0;
+                const isSoon = diff > 0 && diff < 24 * 60 * 60 * 1000;
+                
+                let colorClass = "text-indigo-500 bg-slate-50";
+                if (isOverdue) colorClass = "text-rose-600 bg-rose-50";
+                else if (isSoon) colorClass = "text-amber-600 bg-amber-50";
+
+                return (
+                  <div className={`flex items-center gap-1 font-black px-1.5 py-0.5 rounded-md ${colorClass}`}>
+                    <Calendar size={10} strokeWidth={2.5} />
+                    <span className="text-[9px] uppercase tracking-tighter">
+                      {format(due, "MMM d, HH:mm", { locale: es })}
+                    </span>
+                  </div>
+                );
+              })()}
               <div className="text-[8px] font-black text-slate-300 uppercase tracking-widest">
                 {format(new Date(task.created_at), "dd MMM, HH:mm")}
               </div>
