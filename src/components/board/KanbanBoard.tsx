@@ -57,10 +57,32 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
 
   const supabase = useRef(createClient()).current;
 
+  // V13.1 - URL Cleanup (Strip sensitive params after identification)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      const paramsToStrip = ["user_id", "userId", "contact_id", "contactId", "location_id", "role"];
+      let hasParams = false;
+      
+      paramsToStrip.forEach(param => {
+        if (url.searchParams.has(param)) {
+          url.searchParams.delete(param);
+          hasParams = true;
+        }
+      });
+
+      if (hasParams) {
+        // Clean URL without reloading page
+        window.history.replaceState(null, "", url.pathname + url.search);
+      }
+    }
+  }, []);
+
   // Sync tasksRef for dnd callbacks
   useEffect(() => {
     tasksRef.current = tasks;
   }, [tasks]);
+
 
   // --- DERIVED DATA (FILTERING) ---
   const filteredTasks = tasks.filter(task => {

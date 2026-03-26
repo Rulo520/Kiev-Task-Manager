@@ -34,12 +34,31 @@ export function Gatekeeper({ debug, isIframe, ghlId, sessionUserId, searchParams
 
     // Standard Handshake via postMessage
     if (typeof window !== "undefined") {
-      const handleHandshake = (event: MessageEvent) => {
+      const handleHandshake = async (event: MessageEvent) => {
         if (event.data?.type === "ghl-user-info" && event.data?.id) {
           const gId = event.data.id;
-          window.location.href = `?user_id=${gId}${debug ? "&debug=true" : ""}`;
+          
+          try {
+            // V13.1 - Secure Session Handshake (No URL parameters)
+            const res = await fetch("/api/auth/session", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ userId: gId })
+            });
+            
+            if (res.ok) {
+              window.location.reload();
+            } else {
+              // Fallback to URL params if API fails
+              window.location.href = `?user_id=${gId}${debug ? "&debug=true" : ""}`;
+            }
+          } catch (err) {
+            console.error("Handshake Error:", err);
+            window.location.href = `?user_id=${gId}${debug ? "&debug=true" : ""}`;
+          }
         }
       };
+
       
       window.addEventListener("message", handleHandshake);
       return () => {

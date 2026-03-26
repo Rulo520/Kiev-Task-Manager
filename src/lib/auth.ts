@@ -29,10 +29,16 @@ export async function getAuthUser(req: Request): Promise<GHLUser | null> {
 
   const testUserId = url.searchParams.get("testUser") || req.headers.get("x-test-user");
 
-  // Identification priority: 1. x-test-user (internal), 2. GHL identity
-  const targetId = testUserId || ghlUserId;
+  // V13.1 - Cookie Session Support
+  const cookieHeader = req.headers.get("cookie") || "";
+  const kievSession = cookieHeader.split("; ").find(c => c.startsWith("kiev_user_id="))?.split("=")[1];
+
+  // Identification priority: 1. x-test-user (internal), 2. Cookie (Session), 3. GHL identity (Params)
+  const targetId = testUserId || kievSession || ghlUserId;
 
   if (!targetId) return null;
+
+
 
   const supabase = await createClient();
 

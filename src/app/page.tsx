@@ -43,10 +43,8 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
     if (seeded) finalColumns = seeded as Column[];
   }
   
-  // V9.2 - Filter columns for clients
-  const finalRole = (searchParams?.role as Role) || "client"; // Need to calculate role earlier or pass it
-
   // 2. IDENTITY RESOLUTION (V8.0 — GHL Auto-Sync)
+
   const cookieStore = await cookies();
   const sessionUserId = cookieStore.get("kiev_user_id")?.value;
   
