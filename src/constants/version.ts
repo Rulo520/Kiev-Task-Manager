@@ -1,6 +1,7 @@
 export const APP_NAME = "Kiev Platform";
-export const APP_VERSION = "V18.6";
+export const APP_VERSION = "V18.7";
 /*
+  V18.7 - Gatekeeper 3P-Cookie Bypass (Fix for Chrome/Safari blocking iFrame sessions)
   V18.6 - Role-Based Task Branding (Agency: | Kiev, Client: | Subaccount)
   V18.5 - Soft Bubble Pop Notification Sound & Email/Webhook Disable
   V18.4 - Manual Branding Logic (Initial)

@@ -39,19 +39,17 @@ export function Gatekeeper({ debug, isIframe, ghlId, sessionUserId, searchParams
           const gId = event.data.id;
           
           try {
-            // V13.1 - Secure Session Handshake (No URL parameters)
-            const res = await fetch("/api/auth/session", {
+            // V13.1 / V18.7 Patch - Attempt Secure Session Handshake, but ALWAYS append the user_id to URL
+            // because modern Chrome/Safari aggressively block Third-Party cookies in iFrames
+            // even if the server returns 200 OK for the Set-Cookie request.
+            await fetch("/api/auth/session", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ userId: gId })
             });
             
-            if (res.ok) {
-              window.location.reload();
-            } else {
-              // Fallback to URL params if API fails
-              window.location.href = `?user_id=${gId}${debug ? "&debug=true" : ""}`;
-            }
+            // Always fallback to query parameter to guarantee access in 3P blocked environments
+            window.location.href = `?user_id=${gId}${debug ? "&debug=true" : ""}`;
           } catch (err) {
             console.error("Handshake Error:", err);
             window.location.href = `?user_id=${gId}${debug ? "&debug=true" : ""}`;
