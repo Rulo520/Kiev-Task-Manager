@@ -56,7 +56,14 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
       });
       if (!res.ok) throw new Error("Failed to fetch task details");
       const data = await res.json();
-      setTask(data);
+      // V19.2 - Merge logic to prevent chat from wiping local unsaved edits
+      setTask(prev => ({
+        ...data,
+        // Preserve local unsaved changes for these fields
+        title: prev.id === data.id ? prev.title : data.title,
+        description: prev.id === data.id ? (prev.description || "") : (data.description || ""),
+        due_date: prev.id === data.id ? prev.due_date : data.due_date
+      }));
       setServerTask(data);
       setTempAssigneeIds(data.assignees?.map((a: any) => a.user.id) || []);
       setTempLabelIds(data.labels?.map((l: any) => l.label.id) || []);
@@ -237,7 +244,11 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
       });
       if (res.ok) {
         setNewComment("");
+        // V19.2 - Proactive refresh of just the task state, merging with local edits
         fetchTaskDetails();
+        
+        // Notify parent board specifically for this change
+        window.dispatchEvent(new CustomEvent('sync-task', { detail: { taskId: task.id } }));
       }
     } catch (err) { console.error(err); }
   };

@@ -104,7 +104,10 @@ export async function resolveUser(
     .or(`ghl_user_id.eq.${ghlId},email.eq.${ghlId}`)
     .maybeSingle();
 
-  if (existingUser && (!preferredRole || existingUser.role === preferredRole)) {
+  // V19.1 - Force resolution if critical data is missing but provided in context
+  const isMissingData = !existingUser?.company_name && explicitLocationId;
+
+  if (existingUser && (!preferredRole || existingUser.role === preferredRole) && !isMissingData) {
     const lastUpdated = new Date(existingUser.updated_at || 0).getTime();
     if (Date.now() - lastUpdated > 24 * 60 * 60 * 1000 && GHL_ACCESS_TOKEN) {
       refreshUserInBackground(existingUser.ghl_user_id, existingUser.role);

@@ -77,13 +77,15 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
     u.email === requestedUserId
   ) as User | undefined;
 
-  // GHL Auto-Sync: Force resolution if identity is present and either:
-  // 1. User doesn't exist locally
-  // 2. Local user role doesn't match the GHL identity source (ONLY if they enter as a contact)
-  // We DO NOT force 'agency' role if they enter via userId, to allow DB role overrides (e.g. staff who are actually clients)
   const preferredRole = ghlContactId ? "client" : undefined;
 
-  if (ghlIdentity && (!currentUser || (preferredRole && currentUser.role !== preferredRole))) {
+  // V19.1 - Force resolution if ghlIdentity is present and either:
+  // 1. User doesn't exist locally
+  // 2. Local user role doesn't match the GHL identity source (ONLY if they enter as a contact)
+  // 3. User EXISTS but is missing company_name (this fixes branding for legacy/incomplete records)
+  const isMissingBrandingInfo = currentUser && !currentUser.company_name && explicitLocationId;
+
+  if (ghlIdentity && (!currentUser || (preferredRole && currentUser.role !== preferredRole) || isMissingBrandingInfo)) {
     const resolved = await resolveUser(ghlIdentity, preferredRole, explicitLocationId);
     if (resolved) {
       currentUser = resolved as unknown as User;

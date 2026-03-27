@@ -92,10 +92,36 @@ export default function NotificationBell({ userId }: NotificationBellProps) {
 
   const playNotificationSound = () => {
     if (audioRef.current) {
+      // V19.1 - Handle audio with better error capture
       audioRef.current.currentTime = 0;
-      audioRef.current.play().catch((e) => console.log("Audio play blocked", e));
+      const playPromise = audioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((e) => {
+          console.warn("[NotificationBell] Audio blocked by browser policy. Interaction required.", e);
+        });
+      }
     }
   };
+
+  // V19.1 - Audio Unlocker (Unlocks audio on first user click anywhere in the bell or board)
+  useEffect(() => {
+    const unlockAudio = () => {
+      if (audioRef.current) {
+        audioRef.current.play()
+          .then(() => {
+            audioRef.current!.pause();
+            audioRef.current!.currentTime = 0;
+            window.removeEventListener('click', unlockAudio);
+            console.log("[NotificationBell] Audio context unlocked");
+          })
+          .catch(() => {
+            // Still blocked, keep listener
+          });
+      }
+    };
+    window.addEventListener('click', unlockAudio);
+    return () => window.removeEventListener('click', unlockAudio);
+  }, []);
 
   const markAsRead = async (id: string) => {
     try {
@@ -147,7 +173,11 @@ export default function NotificationBell({ userId }: NotificationBellProps) {
 
   return (
     <div className="relative">
-      <audio ref={audioRef} src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3" preload="auto" />
+      <audio 
+        ref={audioRef} 
+        src="https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3" 
+        preload="auto" 
+      />
       
       <button
         onClick={() => setIsOpen(!isOpen)}

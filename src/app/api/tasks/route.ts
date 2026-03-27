@@ -228,7 +228,22 @@ export async function PUT(req: Request) {
     const updateData: Partial<Record<string, string | number | null>> = {};
     if (column_id) updateData.column_id = column_id;
     if (position !== undefined) updateData.position = position;
-    if (title) updateData.title = title;
+    let titleToUpdate = title;
+    if (titleToUpdate) {
+      const agencySuffix = " | Kiev";
+      const clientSuffix = authUser.company_name ? " | " + authUser.company_name : "";
+
+      if (authUser.role === "agency") {
+        if (!titleToUpdate.endsWith(agencySuffix)) {
+          titleToUpdate = `${titleToUpdate}${agencySuffix}`;
+        }
+      } else if (authUser.role === "client" && clientSuffix) {
+        if (!titleToUpdate.endsWith(clientSuffix)) {
+          titleToUpdate = `${titleToUpdate}${clientSuffix}`;
+        }
+      }
+      updateData.title = titleToUpdate;
+    }
     if (description !== undefined) updateData.description = description;
     if (priority) updateData.priority = priority;
     if (due_date !== undefined) updateData.due_date = due_date;
