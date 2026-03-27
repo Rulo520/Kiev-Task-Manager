@@ -147,7 +147,7 @@ export default function NotificationBell({ userId }: NotificationBellProps) {
 
   return (
     <div className="relative">
-      <audio ref={audioRef} src="https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3" preload="auto" />
+      <audio ref={audioRef} src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto" />
       
       <button
         onClick={() => setIsOpen(!isOpen)}

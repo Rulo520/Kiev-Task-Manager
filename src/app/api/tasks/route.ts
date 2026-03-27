@@ -105,52 +105,56 @@ export async function POST(req: Request) {
       await supabase.from("task_attachments").insert(attachmentRows);
     }
 
-    // --- IN-APP NOTIFICATION: Task Created ---
-    // If a client creates a task, notify all agency users (or at least acknowledge receipt)
+    // --- NOTIFICATIONS & BROADCAST PREP (V18.2) ---
+    const finalPromises: Promise<any>[] = [];
     if (authUser.role === "client") {
       const { data: agencyUsers } = await supabase.from("users").select("id").eq("role", "agency");
-      const notifPromises = agencyUsers?.map(agencyUser => 
-        createInAppNotification({
+      agencyUsers?.forEach(agencyUser => {
+        finalPromises.push(createInAppNotification({
           userId: agencyUser.id,
           actorId: authUser.id,
           taskId: task.id,
           type: "TASK_CREATED",
           title: "Nuevo Requerimiento",
           message: `${authUser.first_name} ha creado: ${title}`
-        })
-      ) || [];
-      await Promise.all(notifPromises);
-    }
-
-    // Return the full task with relationships
-
-    const { data: fullTask } = await supabase
-      .from("tasks")
-      .select(`
-        *,
-        assignees:task_assignees(
-          user:users(id, first_name, last_name, profile_pic)
-        ),
-        labels:task_labels(
-          label:labels(*)
-        ),
-        checklists:task_checklists(*),
-        attachments:task_attachments(*),
-        comments:task_comments(*)
-      `)
-      .eq("id", task.id)
-      .single();
-
-    // --- BROADCAST: FORCE SYNC (V18.0) ---
-    try {
-      await supabase.channel('kanban-global-sync').send({
-        type: 'broadcast',
-        event: 'TASK_SAVED',
-        payload: { taskId: task.id }
+        }));
       });
-    } catch (err) {
-      console.error("Broadcast error:", err);
     }
+
+    // --- PARALLEL: FETCH & NOTIFY (V18.2) ---
+    const [fullTaskResult, notifResults] = await Promise.all([
+      supabase
+        .from("tasks")
+        .select(`
+          *,
+          assignees:task_assignees(
+            user:users(id, first_name, last_name, profile_pic)
+          ),
+          labels:task_labels(
+            label:labels(*)
+          ),
+          checklists:task_checklists(*),
+          attachments:task_attachments(*),
+          comments:task_comments(*)
+        `)
+        .eq("id", task.id)
+        .single(),
+
+      Promise.all([
+        ...finalPromises,
+        // Broadcast Sync
+        supabase.channel('kanban-global-sync').send({
+          type: 'broadcast',
+          event: 'TASK_SAVED',
+          payload: { taskId: task.id }
+        })
+      ])
+    ]).catch(err => {
+      console.error("Parallel POST operations error:", err);
+      return [null, null];
+    });
+
+    const fullTask = fullTaskResult?.data;
 
     return NextResponse.json(fullTask || task, { 
       status: 201,
@@ -225,15 +229,17 @@ export async function PUT(req: Request) {
       if (error) throw error;
     }
 
+    // --- NOTIFICATIONS GATHERING (V18.2) ---
+    const allNotifPromises: Promise<any>[] = [];
+
     // --- NOTIFICATIONS: Column Movement ---
     if (column_id && column_id !== existingTask.column_id) {
       try {
         const { data: newCol } = await supabase.from("columns").select("title").eq("id", column_id).single();
-        const movementPromises: Promise<any>[] = [];
         
         // Notify owner
         if (existingTask.created_by && existingTask.created_by !== authUser.id) {
-          movementPromises.push(createInAppNotification({
+          allNotifPromises.push(createInAppNotification({
             userId: existingTask.created_by,
             actorId: authUser.id,
             taskId: id,
@@ -246,7 +252,7 @@ export async function PUT(req: Request) {
         // Notify assignees
         existingTask.assignees?.forEach((a: any) => {
           if (a.user_id !== authUser.id) {
-            movementPromises.push(createInAppNotification({
+            allNotifPromises.push(createInAppNotification({
               userId: a.user_id,
               actorId: authUser.id,
               taskId: id,
@@ -257,7 +263,7 @@ export async function PUT(req: Request) {
           }
         });
 
-        // Keep legacy email logic for specific stages (first -> move out, or last)
+        // Keep legacy email logic
         const { data: existingColRef } = await supabase.from("columns").select("location_id").eq("id", existingTask.column_id).single();
         if (existingColRef?.location_id) {
           const { data: columnsData } = await supabase.from("columns").select("id").eq("location_id", existingColRef.location_id).order("position");
@@ -266,14 +272,14 @@ export async function PUT(req: Request) {
             const lastColumnId = columnsData[columnsData.length - 1].id;
 
             if (existingTask.column_id === firstColumnId && column_id !== firstColumnId) {
-              movementPromises.push(sendTaskNotification({
+              allNotifPromises.push(sendTaskNotification({
                 notificationType: "MOVED_OUT_OF_FIRST_STAGE",
                 task: { id, title: title || existingTask.title },
                 recipientEmail: creatorData?.email,
                 recipientName: creatorData?.first_name || "Cliente"
               }));
             } else if (column_id === lastColumnId && existingTask.column_id !== lastColumnId) {
-              movementPromises.push(sendTaskNotification({
+              allNotifPromises.push(sendTaskNotification({
                 notificationType: "REACHED_LAST_STAGE",
                 task: { id, title: title || existingTask.title },
                 recipientEmail: creatorData?.email,
@@ -282,9 +288,8 @@ export async function PUT(req: Request) {
             }
           }
         }
-        await Promise.all(movementPromises);
       } catch (err) {
-        console.error("Error sending movement notification:", err);
+        console.error("Error gathering movement notification:", err);
       }
     }
 
@@ -301,21 +306,19 @@ export async function PUT(req: Request) {
         if (a.user_id !== authUser.id) recipients.add(a.user_id);
       });
 
-      const detailPromises = Array.from(recipients).map(userId => 
-        createInAppNotification({
+      recipients.forEach(userId => {
+        allNotifPromises.push(createInAppNotification({
           userId,
           actorId: authUser.id,
           taskId: id,
           type: "TASK_UPDATED", 
           title: "Tarea Actualizada",
           message: `${authUser.first_name} actualizó los detalles de "${existingTask.title}"`
-        })
-      );
-      await Promise.all(detailPromises);
+        }));
+      });
     }
 
-
-    // V9.3 - Handle Assignee Updates (Agency Only/Privileged)
+    // --- NOTIFICATIONS: New Assignees ---
     const { assignees } = body;
     if (assignees && Array.isArray(assignees)) {
       // Sync assignees: delete old, insert new
@@ -327,24 +330,21 @@ export async function PUT(req: Request) {
         }));
         await supabase.from("task_assignees").insert(assigneeRows);
 
-        // --- NOTIFICATIONS: New Assignees ---
         try {
           const previousAssigneeIds = existingTask.assignees?.map((a: any) => a.user_id) || [];
           const newAssigneeIds = assignees.filter((userId: string) => !previousAssigneeIds.includes(userId));
           
           if (newAssigneeIds.length > 0) {
             const { data: newUsers } = await supabase.from("users").select("id, email, first_name").in("id", newAssigneeIds);
-            const assigneePromises: Promise<any>[] = [];
-            
             newUsers?.forEach(user => {
-              assigneePromises.push(sendTaskNotification({
+              allNotifPromises.push(sendTaskNotification({
                 notificationType: "ASSIGNED",
                 task: { id, title: title || existingTask.title },
                 recipientEmail: user.email,
                 recipientName: user.first_name || "Usuario"
               }));
 
-              assigneePromises.push(createInAppNotification({
+              allNotifPromises.push(createInAppNotification({
                 userId: user.id,
                 actorId: authUser.id,
                 taskId: id,
@@ -353,10 +353,9 @@ export async function PUT(req: Request) {
                 message: `${authUser.first_name} te ha asignado la tarea: ${title || existingTask.title}`
               }));
             });
-            await Promise.all(assigneePromises);
           }
         } catch (err) {
-          console.error("Error sending assignee notification:", err);
+          console.error("Error gathering assignee notification:", err);
         }
       }
     }
@@ -372,38 +371,40 @@ export async function PUT(req: Request) {
         await supabase.from("task_labels").insert(labelRows);
       }
     }
+    // --- PARALLEL: FETCH & NOTIFY (V18.2) ---
+    const [fetchResult, notifResults] = await Promise.all([
+      supabase
+        .from("tasks")
+        .select(`
+          *,
+          assignees:task_assignees(
+            user:users(id, first_name, last_name, profile_pic)
+          ),
+          labels:task_labels(
+            label:labels(*)
+          ),
+          checklists:task_checklists(*),
+          attachments:task_attachments(*),
+          comments:task_comments(*)
+        `)
+        .eq("id", id)
+        .single(),
 
-    // Now Fetch the FULL transformed task to return
-    const { data: fullUpdatedTask, error: fetchError } = await supabase
-      .from("tasks")
-      .select(`
-        *,
-        assignees:task_assignees(
-          user:users(id, first_name, last_name, profile_pic)
-        ),
-        labels:task_labels(
-          label:labels(*)
-        ),
-        checklists:task_checklists(*),
-        attachments:task_attachments(*),
-        comments:task_comments(*)
-      `)
-      .eq("id", id)
-      .single();
+      Promise.all([
+        ...allNotifPromises,
+        supabase.channel('kanban-global-sync').send({
+          type: 'broadcast',
+          event: 'TASK_SAVED',
+          payload: { taskId: id }
+        })
+      ])
+    ]).catch(err => {
+      console.error("Parallel PUT operations error:", err);
+      return [null, null];
+    });
 
-    if (fetchError) throw fetchError;
-    
-    // --- BROADCAST: FORCE SYNC (V18.0) ---
-    // This provides a definitive signal that a logical "Save" has finished
-    try {
-      await supabase.channel('kanban-global-sync').send({
-        type: 'broadcast',
-        event: 'TASK_SAVED',
-        payload: { taskId: id }
-      });
-    } catch (err) {
-      console.error("Broadcast error:", err);
-    }
+    const fullUpdatedTask = fetchResult?.data;
+    if (fetchResult?.error) throw fetchResult.error;
 
     return NextResponse.json(fullUpdatedTask, {
       headers: {

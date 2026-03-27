@@ -744,7 +744,7 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
         <div className="w-full md:w-80 bg-slate-50/50 flex flex-col p-6 md:p-8">
           <div className="flex items-center justify-between mb-6">
             <h4 className="text-sm font-black text-gray-800 uppercase tracking-widest">
-              Comunicación
+              Chat
             </h4>
             {isLoading && <Loader2 size={16} className="text-indigo-500 animate-spin" />}
           </div>
