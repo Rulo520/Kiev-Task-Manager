@@ -1,6 +1,7 @@
 export const APP_NAME = "Kiev Platform";
-export const APP_VERSION = "V19.2";
+export const APP_VERSION = "V19.3";
 /*
+  V19.3 - Fixed Recursive Task Branding Loop
   V19.2 - Chat Autosave & State Sync Fix (Conflict Prevention)
   V19.1 - Robust Branding & Notification Fix (Dynamic GHL Sync)
   V19.0 - Stable Access Protocol Rollout (GHL Handshake Fix)
