@@ -471,17 +471,36 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
                 <h4 className="text-sm font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
                   <Tag size={16} /> Etiquetas
                 </h4>
-                {role === 'agency' && (
+                <div className="flex items-center gap-2">
                   <button 
                     onClick={() => setIsCreatingLabel(!isCreatingLabel)}
                     className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-2 py-1 rounded-md transition-colors"
                   >
                     {isCreatingLabel ? "Cancelar" : "+ Nueva Etiqueta"}
                   </button>
-                )}
+                  {role === 'agency' && availableLabels.length > 0 && (
+                    <button 
+                      onClick={async () => {
+                        if (!confirm("⚠️ ¿Estás totalmente seguro de que deseas ELIMINAR TODAS las etiquetas de este tablero? Esta acción es irreversible.")) return;
+                        try {
+                          const res = await fetch(`/api/labels?all=true`, { method: "DELETE" });
+                          if (res.ok) {
+                            window.dispatchEvent(new CustomEvent("sync-labels"));
+                          }
+                        } catch (e) {
+                          console.error(e);
+                        }
+                      }}
+                      className="text-[10px] font-bold text-red-600 hover:text-red-700 bg-red-50 px-2 py-1 rounded-md transition-colors"
+                    >
+                      Limpiar Todo
+                    </button>
+                  )}
+                </div>
+
               </div>
 
-              {isCreatingLabel && role === 'agency' && (
+              {isCreatingLabel && (
                 <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-gray-100 mb-3">
                   <input 
                     type="color" 
@@ -507,6 +526,12 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({ name: newLabelName.trim(), color: newLabelColor })
                         });
+                        if (res.status === 409) {
+                          const error = await res.json();
+                          alert(error.error);
+                          return;
+                        }
+
                         if (res.ok) {
                           const newLabel = await res.json();
                           onLabelCreated?.(newLabel);
@@ -516,7 +541,11 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
 
                           setNewLabelName("");
                           setIsCreatingLabel(false);
+                          
+                          // Force parent refresh
+                          window.dispatchEvent(new CustomEvent("sync-labels"));
                         }
+
                       } catch (e) {
                         console.error(e);
                       } finally {
@@ -534,34 +563,63 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
                 <div className="flex flex-wrap gap-2">
                   {availableLabels.map(label => {
                     const isSelected = tempLabelIds.includes(label.id);
+                    // Ownership check: Agency deletes all, Client deletes own
+                    const canDelete = role === 'agency' || (label.created_by === currentUser.id);
+
                     return (
-                      <button
-                        key={label.id}
-                        onClick={() => {
-                          if (role !== 'agency') return;
-                          const currentLabels = tempLabelIds;
-                          const newLabels = isSelected
-                            ? currentLabels.filter(id => id !== label.id)
-                            : [...currentLabels, label.id];
-                          setTempLabelIds(newLabels);
-                        }}
-                        disabled={role !== 'agency'}
-                        className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter border transition-all ${
-                          isSelected
-                            ? "shadow-sm scale-105"
-                            : "opacity-40 grayscale hover:opacity-100 hover:grayscale-0"
-                        } ${role !== 'agency' && !isSelected ? "hidden" : ""}`}
-                        style={{ 
-                          backgroundColor: isSelected ? `${label.color}20` : "transparent", 
-                          color: label.color, 
-                          borderColor: isSelected ? label.color : "#e5e7eb",
-                          cursor: role === 'agency' ? "pointer" : "default"
-                        }}
-                      >
-                        {label.name}
-                      </button>
+                      <div key={label.id} className="relative group">
+                        <button
+                          onClick={() => {
+                            if (!canEdit) return;
+                            const currentLabels = tempLabelIds;
+                            const newLabels = isSelected
+                              ? currentLabels.filter(id => id !== label.id)
+                              : [...currentLabels, label.id];
+                            setTempLabelIds(newLabels);
+                          }}
+                          className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter border transition-all flex items-center gap-1.5 ${
+                            isSelected
+                              ? "shadow-sm scale-105"
+                              : "opacity-40 grayscale hover:opacity-100 hover:grayscale-0"
+                          }`}
+                          style={{ 
+                            backgroundColor: isSelected ? `${label.color}20` : "transparent", 
+                            color: label.color, 
+                            borderColor: isSelected ? label.color : "#e5e7eb",
+                            cursor: canEdit ? "pointer" : "default"
+                          }}
+                        >
+                          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: label.color }} />
+                          {label.name}
+                        </button>
+                        
+                        {canDelete && (
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (!confirm(`¿Eliminar la etiqueta "${label.name}" del catálogo global?`)) return;
+                              try {
+                                const res = await fetch(`/api/labels?id=${label.id}`, { method: "DELETE" });
+                                if (res.ok) {
+                                  // Trigger global refresh
+                                  window.dispatchEvent(new CustomEvent("sync-labels"));
+                                } else {
+                                  const err = await res.json();
+                                  alert(err.error);
+                                }
+                              } catch (e) {
+                                console.error(e);
+                              }
+                            }}
+                            className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:scale-110"
+                          >
+                            <X size={8} strokeWidth={4} />
+                          </button>
+                        )}
+                      </div>
                     );
                   })}
+
                   {!canEdit && (!task.labels || task.labels.length === 0) && (
                     <div className="text-xs text-gray-400 italic">No hay etiquetas asignadas.</div>
                   )}

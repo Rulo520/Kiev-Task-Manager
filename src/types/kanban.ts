@@ -15,6 +15,8 @@ export type Label = {
   name: string;
   color: string;
   location_id: string | null;
+  created_by?: string | null;
+  created_by_role?: string | null;
 };
 
 export type TaskLabel = {

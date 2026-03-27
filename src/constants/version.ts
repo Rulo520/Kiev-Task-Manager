@@ -1,6 +1,7 @@
 export const APP_NAME = "Kiev Platform";
-export const APP_VERSION = "V20.0";
+export const APP_VERSION = "V21.0";
 /*
+  V21.0 - Hierarchical & Private Label System
   V20.0 - Dynamic Multi-Tenant Architecture (GHL Location Sync)
   V19.9 - Filter UI Cleanup (Renamed Clientes (GHL) -> Clientes)
   V19.6 - Automatic Flying Animation (Takeoff & Landing on complete)

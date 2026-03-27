@@ -137,7 +137,26 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
     return null;
   }, [fetchTaskDetails]);
 
+  const fetchLabels = useCallback(async () => {
+    try {
+      const res = await fetch("/api/labels");
+      if (res.ok) {
+        const data = await res.json();
+        setLabels(data);
+      }
+    } catch (e) {
+      console.error("Error fetching labels:", e);
+    }
+  }, []);
+
   useEffect(() => {
+    const handleSync = () => fetchLabels();
+    window.addEventListener("sync-labels", handleSync);
+    return () => window.removeEventListener("sync-labels", handleSync);
+  }, [fetchLabels]);
+
+  useEffect(() => {
+
     const handleKeyDown = (e: KeyboardEvent) => {
 
       // Ignore if typing in an input/textarea
@@ -256,7 +275,12 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
           setColumns(prev => prev.filter(c => c.id === payload.old.id));
         }
       })
+      .on("postgres_changes", { event: "*", schema: "public", table: "labels" }, () => {
+        // Catalogo de etiquetas cambio, recargar
+        fetchLabels();
+      })
       .on("broadcast", { event: "TASK_SAVED" }, async ({ payload }) => {
+
         if (payload.taskId) {
           console.log("Realtime: TASK_SAVED broadcast received for", payload.taskId);
           const updatedTask = await fetchTaskDetailsWithRetry(payload.taskId);
