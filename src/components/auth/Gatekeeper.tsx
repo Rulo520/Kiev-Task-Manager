@@ -20,6 +20,7 @@ export function Gatekeeper({ debug, isIframe, ghlId, sessionUserId, searchParams
   const [isDetecting, setIsDetecting] = useState(true);
   const [isDenied, setIsDenied] = useState(false);
   const [showHardRefresh, setShowHardRefresh] = useState(false);
+  const [rawEvents, setRawEvents] = useState<string[]>([]);
 
   useEffect(() => {
     // V7.1 UX Patch: If we detect we are likely NOT in an iFrame, we show the message faster
@@ -39,24 +40,27 @@ export function Gatekeeper({ debug, isIframe, ghlId, sessionUserId, searchParams
     // Standard Handshake via postMessage
     if (typeof window !== "undefined") {
       const handleHandshake = async (event: MessageEvent) => {
+        // Log all events for diagnostics
+        if (event.data && typeof event.data === 'object') {
+           setRawEvents((prev: string[]) => {
+             const newEvents = [...prev, JSON.stringify(event.data)].slice(-3); // Keep last 3
+             return newEvents;
+           });
+        } else if (event.data && typeof event.data === 'string') {
+           setRawEvents((prev: string[]) => [...prev, event.data].slice(-3));
+        }
+
         if (event.data?.type === "ghl-user-info" && event.data?.id) {
           const gId = event.data.id;
           
           try {
-            // V13.1 / V18.7 Patch - Attempt Secure Session Handshake, but ALWAYS append the user_id to URL
-            // because modern Chrome/Safari aggressively block Third-Party cookies in iFrames
-            // even if the server returns 200 OK for the Set-Cookie request.
             await fetch("/api/auth/session", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ userId: gId })
             });
 
-            // V18.8 Patch - Client-side cookie fallback (in case server Set-Cookie is ignored but client JS can set it)
             document.cookie = `kiev_user_id=${gId}; path=/; max-age=604800; SameSite=None; Secure`;
-
-            // Always fallback to query parameter to guarantee access in 3P blocked environments
-            // Use replace to prevent back-button loops
             window.location.replace(`?user_id=${gId}${debug ? "&debug=true" : ""}`);
           } catch (err) {
             console.error("Handshake Error:", err);
@@ -167,7 +171,7 @@ export function Gatekeeper({ debug, isIframe, ghlId, sessionUserId, searchParams
                 </button>
               </div>
 
-              <div className="flex flex-col items-center gap-1 opacity-60 mt-4">
+              <div className="flex flex-col items-center gap-1 opacity-60 mt-4 max-w-full">
                 <p className="text-[8px] text-gray-400 font-black uppercase tracking-[0.2em]">
                   {APP_SAFETY} {APP_VERSION}
                 </p>
@@ -176,17 +180,20 @@ export function Gatekeeper({ debug, isIframe, ghlId, sessionUserId, searchParams
                 </p>
 
                 {true && (
-                   <div className="mt-8 p-6 bg-slate-900 text-left rounded-3xl border border-white/10 font-mono text-[9px] w-full shadow-2xl overflow-hidden">
+                   <div className="mt-8 p-6 bg-slate-900 text-left rounded-3xl border border-white/10 font-mono text-[9px] w-full shadow-2xl overflow-hidden max-w-full break-all">
                      <p className="text-indigo-400 font-black mb-3 uppercase tracking-widest flex items-center gap-2">
                         <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" /> Diagnostics
                      </p>
-                     <div className="space-y-1.5 text-slate-300">
+                     <div className="space-y-1.5 text-slate-300 max-w-full">
                        <p><span className="text-slate-500">GHL_ID:</span> {ghlId || "NONE"}</p>
                        <p><span className="text-slate-500">REQ_ID:</span> {serverDiagnostic?.requestedUserId || "NONE"}</p>
                        <p><span className="text-slate-500">USER_FND:</span> {serverDiagnostic?.foundUser || "NONE"}</p>
-                       <p className="break-all pt-2 border-t border-white/5 mt-2">
-                         <span className="text-slate-500">PARAMS:</span> {JSON.stringify(searchParams)}
-                       </p>
+                       <div className="pt-2 border-t border-white/5 mt-2 flex flex-col gap-1">
+                         <span className="text-slate-500">EVENTS ({rawEvents.length}):</span>
+                         {rawEvents.map((ev, i) => (
+                           <div key={i} className="text-[8px] opacity-70 bg-black/20 p-1 rounded overflow-hidden">{ev.slice(0, 80)}{ev.length > 80 ? '...' : ''}</div>
+                         ))}
+                       </div>
                        <p className="pt-2 border-t border-white/5 mt-2 text-rose-400 font-bold">
                          VERSIÓN: {APP_VERSION} (Active)
                        </p>
