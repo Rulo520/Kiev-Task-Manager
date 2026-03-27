@@ -126,13 +126,15 @@ export async function resolveUser(
   if (!ghlProfile) return existingUser || null;
 
   // For both new and existing users, resolve the company name if possible
+  // V18.4 - If explicitLocationId is provided, ALWAYS fetch its name to use as current context
   let resolvedCompanyName = ghlProfile.company_name;
-  if (!resolvedCompanyName && (explicitLocationId || ghlProfile.location_id)) {
-    resolvedCompanyName = await fetchLocationName(explicitLocationId || ghlProfile.location_id);
+  if (explicitLocationId || (!resolvedCompanyName && ghlProfile.location_id)) {
+    const locName = await fetchLocationName(explicitLocationId || ghlProfile.location_id);
+    if (locName) resolvedCompanyName = locName;
   }
 
   if (existingUser) {
-    // V18.3 - DO NOT OVERWRITE company_name with null if we already have one
+    // V18.4 - Use resolved name from GHL/URL, fallback to existing only if resolved is null
     const finalCompanyName = resolvedCompanyName || existingUser.company_name;
 
     const { data: updated, error } = await supabase
@@ -143,7 +145,7 @@ export async function resolveUser(
         first_name: ghlProfile.first_name,
         last_name: ghlProfile.last_name,
         role: ghlProfile.role,
-        location_id: ghlProfile.location_id || explicitLocationId || existingUser.location_id,
+        location_id: explicitLocationId || ghlProfile.location_id || existingUser.location_id,
         company_name: finalCompanyName,
         profile_pic: ghlProfile.profile_pic,
         updated_at: new Date().toISOString(),

@@ -28,8 +28,8 @@ export async function POST(req: Request) {
     const body = await req.json();
     let { title, description, column_id, priority, due_date, assignees, labels, checklists, attachments } = body;
 
-    // --- V18.3 - CLIENT NAME INTEGRATION ---
-    if (authUser.role === "client" && authUser.company_name) {
+    // --- V18.4 - UNIVERSAL CLIENT NAME INTEGRATION ---
+    if (authUser.company_name) {
       if (!title.includes(` | ${authUser.company_name}`)) {
         title = `${title} | ${authUser.company_name}`;
       }
