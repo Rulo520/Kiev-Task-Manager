@@ -793,8 +793,12 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
                   </button>
                 )}
               </div>
-              <DragOverlay>
-                {activeTask ? <TaskCard task={activeTask} /> : null}
+              <DragOverlay adjustScale={false}>
+                {activeTask ? (
+                  <div className="z-50 pointer-events-none transition-transform duration-200" style={{ transform: 'rotate(-5deg) scale(1.05)', filter: 'drop-shadow(0 25px 25px rgba(0,0,0,0.15))' }}>
+                    <TaskCard task={activeTask} />
+                  </div>
+                ) : null}
               </DragOverlay>
             </DndContext>
           </div>

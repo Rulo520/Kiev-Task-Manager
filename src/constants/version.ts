@@ -1,6 +1,7 @@
 export const APP_NAME = "Kiev Platform";
-export const APP_VERSION = "V19.4";
+export const APP_VERSION = "V19.5";
 /*
+  V19.5 - Flying Card Animation (-5° rotation during drag)
   V19.4 - Dynamic Branding Context Sync (Multi-account client support)
   V19.3 - Fixed Recursive Task Branding Loop
   V19.2 - Chat Autosave & State Sync Fix (Conflict Prevention)
