@@ -597,7 +597,8 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
                           <button
                             onClick={async (e) => {
                               e.stopPropagation();
-                              if (!confirm(`¿Eliminar la etiqueta "${label.name}" del catálogo global?`)) return;
+                              if (!confirm(`⚠️ ¿Eliminar la etiqueta "${label.name}" permanentemente del catálogo?\n\nEsta acción quitará la etiqueta de TODAS las tareas que la usen.`)) return;
+                              
                               try {
                                 const res = await fetch(`/api/labels?id=${label.id}`, { method: "DELETE" });
                                 if (res.ok) {
@@ -611,14 +612,15 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
                                 console.error(e);
                               }
                             }}
-                            className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:scale-110"
+                            className="absolute -top-2 -right-2 bg-red-100 text-red-600 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm border border-red-200 hover:bg-red-600 hover:text-white z-10"
                           >
-                            <X size={8} strokeWidth={4} />
+                            <X size={10} strokeWidth={3} />
                           </button>
                         )}
                       </div>
                     );
                   })}
+
 
                   {!canEdit && (!task.labels || task.labels.length === 0) && (
                     <div className="text-xs text-gray-400 italic">No hay etiquetas asignadas.</div>

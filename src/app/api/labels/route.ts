@@ -27,8 +27,19 @@ export async function GET(request: Request) {
   const { data, error } = await query.order("name", { ascending: true });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data);
+
+  // V21.1 - Force No Cache for labels (Critical for consistency)
+  return new NextResponse(JSON.stringify(data), {
+    status: 200,
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+      "Pragma": "no-cache",
+      "Expires": "0",
+    },
+  });
 }
+
 
 export async function POST(request: Request) {
   const user = await getAuthUser(request);

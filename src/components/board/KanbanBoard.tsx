@@ -139,7 +139,16 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
 
   const fetchLabels = useCallback(async () => {
     try {
-      const res = await fetch("/api/labels");
+      // V21.1 - Added timestamp to bust browser cache and more strict locationId
+      const params = new URLSearchParams();
+      const currentLocationId = new URL(window.location.href).searchParams.get("locationId") || currentUser.location_id;
+      if (currentLocationId) params.append("locationId", currentLocationId);
+      params.append("_t", Date.now().toString());
+
+      const res = await fetch(`/api/labels?${params.toString()}`, {
+        headers: { "Cache-Control": "no-cache" }
+      });
+      
       if (res.ok) {
         const data = await res.json();
         setLabels(data);
@@ -147,15 +156,34 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
     } catch (e) {
       console.error("Error fetching labels:", e);
     }
-  }, []);
+  }, [currentUser.location_id]);
+
+  const fetchTasks = useCallback(async () => {
+    try {
+      const currentLocationId = new URL(window.location.href).searchParams.get("locationId") || currentUser.location_id;
+      if (!currentLocationId) return;
+
+      const res = await fetch(`/api/tasks?locationId=${currentLocationId}&_t=${Date.now()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setTasks(data);
+      }
+    } catch (e) {
+      console.error("Error fetching tasks:", e);
+    }
+  }, [currentUser.location_id]);
 
   useEffect(() => {
-    const handleSync = () => fetchLabels();
+    const handleSync = () => {
+      fetchLabels();
+      fetchTasks(); // V21.1 - Sync tasks too on label changes
+    };
     window.addEventListener("sync-labels", handleSync);
     return () => window.removeEventListener("sync-labels", handleSync);
-  }, [fetchLabels]);
+  }, [fetchLabels, fetchTasks]);
 
   useEffect(() => {
+
 
     const handleKeyDown = (e: KeyboardEvent) => {
 
@@ -276,8 +304,9 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
         }
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "labels" }, () => {
-        // Catalogo de etiquetas cambio, recargar
+        // V21.1 - Full sync on label catalog change
         fetchLabels();
+        fetchTasks(); 
       })
       .on("broadcast", { event: "TASK_SAVED" }, async ({ payload }) => {
 
