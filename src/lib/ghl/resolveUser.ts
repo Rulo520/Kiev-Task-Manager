@@ -104,10 +104,13 @@ export async function resolveUser(
     .or(`ghl_user_id.eq.${ghlId},email.eq.${ghlId}`)
     .maybeSingle();
 
-  // V19.1 - Force resolution if critical data is missing but provided in context
+  // V19.4 - Detect Context Changes (Multi-client support)
+  // If the location specified in the URL corresponds to a different client, we must force re-resolution
+  // even if the user record exists, to update the dynamic company_name for branding.
   const isMissingData = !existingUser?.company_name && explicitLocationId;
+  const isDifferentContext = explicitLocationId && existingUser?.location_id !== explicitLocationId;
 
-  if (existingUser && (!preferredRole || existingUser.role === preferredRole) && !isMissingData) {
+  if (existingUser && (!preferredRole || existingUser.role === preferredRole) && !isMissingData && !isDifferentContext) {
     const lastUpdated = new Date(existingUser.updated_at || 0).getTime();
     if (Date.now() - lastUpdated > 24 * 60 * 60 * 1000 && GHL_ACCESS_TOKEN) {
       refreshUserInBackground(existingUser.ghl_user_id, existingUser.role);
