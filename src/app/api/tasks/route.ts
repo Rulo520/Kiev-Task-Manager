@@ -109,7 +109,7 @@ export async function POST(req: Request) {
     // If a client creates a task, notify all agency users (or at least acknowledge receipt)
     if (authUser.role === "client") {
       const { data: agencyUsers } = await supabase.from("users").select("id").eq("role", "agency");
-      agencyUsers?.forEach(agencyUser => {
+      const notifPromises = agencyUsers?.map(agencyUser => 
         createInAppNotification({
           userId: agencyUser.id,
           actorId: authUser.id,
@@ -117,8 +117,9 @@ export async function POST(req: Request) {
           type: "TASK_CREATED",
           title: "Nuevo Requerimiento",
           message: `${authUser.first_name} ha creado: ${title}`
-        });
-      });
+        })
+      ) || [];
+      await Promise.all(notifPromises);
     }
 
     // Return the full task with relationships
@@ -228,30 +229,31 @@ export async function PUT(req: Request) {
     if (column_id && column_id !== existingTask.column_id) {
       try {
         const { data: newCol } = await supabase.from("columns").select("title").eq("id", column_id).single();
+        const movementPromises: Promise<any>[] = [];
         
         // Notify owner
         if (existingTask.created_by && existingTask.created_by !== authUser.id) {
-          createInAppNotification({
+          movementPromises.push(createInAppNotification({
             userId: existingTask.created_by,
             actorId: authUser.id,
             taskId: id,
             type: "COLUMN_CHANGE",
             title: "Movimiento de Tarea",
             message: `"${existingTask.title}" se movió a: ${newCol?.title || 'nueva fase'}`
-          });
+          }));
         }
 
         // Notify assignees
         existingTask.assignees?.forEach((a: any) => {
           if (a.user_id !== authUser.id) {
-            createInAppNotification({
+            movementPromises.push(createInAppNotification({
               userId: a.user_id,
               actorId: authUser.id,
               taskId: id,
               type: "COLUMN_CHANGE",
               title: "Movimiento de Tarea",
               message: `"${existingTask.title}" se movió a: ${newCol?.title || 'nueva fase'}`
-            });
+            }));
           }
         });
 
@@ -264,22 +266,23 @@ export async function PUT(req: Request) {
             const lastColumnId = columnsData[columnsData.length - 1].id;
 
             if (existingTask.column_id === firstColumnId && column_id !== firstColumnId) {
-              await sendTaskNotification({
+              movementPromises.push(sendTaskNotification({
                 notificationType: "MOVED_OUT_OF_FIRST_STAGE",
                 task: { id, title: title || existingTask.title },
                 recipientEmail: creatorData?.email,
                 recipientName: creatorData?.first_name || "Cliente"
-              });
+              }));
             } else if (column_id === lastColumnId && existingTask.column_id !== lastColumnId) {
-              await sendTaskNotification({
+              movementPromises.push(sendTaskNotification({
                 notificationType: "REACHED_LAST_STAGE",
                 task: { id, title: title || existingTask.title },
                 recipientEmail: creatorData?.email,
                 recipientName: creatorData?.first_name || "Cliente"
-              });
+              }));
             }
           }
         }
+        await Promise.all(movementPromises);
       } catch (err) {
         console.error("Error sending movement notification:", err);
       }
@@ -298,17 +301,17 @@ export async function PUT(req: Request) {
         if (a.user_id !== authUser.id) recipients.add(a.user_id);
       });
 
-      recipients.forEach(userId => {
+      const detailPromises = Array.from(recipients).map(userId => 
         createInAppNotification({
           userId,
           actorId: authUser.id,
           taskId: id,
           type: "TASK_UPDATED", 
           title: "Tarea Actualizada",
-
           message: `${authUser.first_name} actualizó los detalles de "${existingTask.title}"`
-        });
-      });
+        })
+      );
+      await Promise.all(detailPromises);
     }
 
 
@@ -331,25 +334,26 @@ export async function PUT(req: Request) {
           
           if (newAssigneeIds.length > 0) {
             const { data: newUsers } = await supabase.from("users").select("id, email, first_name").in("id", newAssigneeIds);
+            const assigneePromises: Promise<any>[] = [];
+            
             newUsers?.forEach(user => {
-              sendTaskNotification({
+              assigneePromises.push(sendTaskNotification({
                 notificationType: "ASSIGNED",
                 task: { id, title: title || existingTask.title },
                 recipientEmail: user.email,
                 recipientName: user.first_name || "Usuario"
-              });
+              }));
 
-              // In-App
-              createInAppNotification({
+              assigneePromises.push(createInAppNotification({
                 userId: user.id,
                 actorId: authUser.id,
                 taskId: id,
                 type: "ASSIGNED",
                 title: "Nueva Asignación",
                 message: `${authUser.first_name} te ha asignado la tarea: ${title || existingTask.title}`
-              });
+              }));
             });
-
+            await Promise.all(assigneePromises);
           }
         } catch (err) {
           console.error("Error sending assignee notification:", err);

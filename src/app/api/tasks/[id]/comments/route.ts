@@ -65,11 +65,11 @@ export async function POST(
           .in("id", Array.from(recipients));
 
         if (!rolesError && recipientsData) {
-          recipientsData.forEach(recipient => {
+          const commentNotifPromises = recipientsData.map(recipient => {
             // Skip clients if it's an internal comment
-            if (type === "internal" && recipient.role === "client") return;
+            if (type === "internal" && recipient.role === "client") return Promise.resolve();
 
-            createInAppNotification({
+            return createInAppNotification({
               userId: recipient.id,
               actorId: authUser.id,
               taskId: task_id,
@@ -78,6 +78,7 @@ export async function POST(
               message: `${authUser.first_name} comentó: ${content.substring(0, 30)}${content.length > 30 ? "..." : ""}`
             });
           });
+          await Promise.all(commentNotifPromises);
         }
       }
     } catch (err) {
