@@ -41,20 +41,21 @@ export function Gatekeeper({ debug, isIframe, ghlId, sessionUserId, searchParams
       const handleHandshake = async (event: MessageEvent) => {
         if (event.data?.type === "ghl-user-info" && event.data?.id) {
           const gId = event.data.id;
+          const locId = event.data.locationId;
           
           try {
             await fetch("/api/auth/session", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ userId: gId })
+              body: JSON.stringify({ userId: gId, locationId: locId })
             });
 
             document.cookie = `kiev_user_id=${gId}; path=/; max-age=604800; SameSite=None; Secure`;
-            window.location.replace(`?user_id=${gId}${debug ? "&debug=true" : ""}`);
+            window.location.replace(`?user_id=${gId}${locId ? `&locationId=${locId}` : ""}${debug ? "&debug=true" : ""}`);
           } catch (err) {
             console.error("Handshake Error:", err);
             document.cookie = `kiev_user_id=${gId}; path=/; max-age=604800; SameSite=None; Secure`;
-            window.location.replace(`?user_id=${gId}${debug ? "&debug=true" : ""}`);
+            window.location.replace(`?user_id=${gId}${locId ? `&locationId=${locId}` : ""}${debug ? "&debug=true" : ""}`);
           }
         }
       };

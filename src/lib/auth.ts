@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { resolveUser } from "@/lib/ghl/resolveUser";
 
 export type GHLUser = {
   id: string; // Internal Supabase ID
@@ -28,6 +29,12 @@ export async function getAuthUser(req: Request): Promise<GHLUser | null> {
     req.headers.get("x-ghl-user-id") ||
     req.headers.get("x-ghl-contact-id");
 
+  // V20.0 - Capture current location context
+  const explicitLocationId = 
+    url.searchParams.get("locationId") || 
+    url.searchParams.get("location_id") || 
+    req.headers.get("x-ghl-location-id");
+
   const testUserId = url.searchParams.get("testUser") || req.headers.get("x-test-user");
 
   // V13.1 - Cookie Session Support
@@ -39,21 +46,22 @@ export async function getAuthUser(req: Request): Promise<GHLUser | null> {
 
   if (!targetId) return null;
 
-
-
-  const supabase = await createClient();
-
-  // 1. Try finding by internal ID or GHL ID or Email
-  const { data: user, error } = await supabase
-    .from("users")
-    .select("*")
-    .or(`id.eq."${targetId}",ghl_user_id.eq."${targetId}",email.eq."${targetId}"`)
-    .single();
-
-  if (!error && user) {
-    return user as GHLUser;
+  // V20.0 - Use resolveUser for dynamic context switching and sync
+  // This will handle case where users switch locations (isDifferentContext check)
+  try {
+    const user = await resolveUser(targetId, undefined, explicitLocationId || undefined);
+    return user as GHLUser | null;
+  } catch (err) {
+    console.error("[getAuthUser] Resolution error:", err);
+    
+    // Fallback to strict DB lookup if resolution fails (prevent total logout on GHL API downtime)
+    const supabase = await createClient();
+    const { data: user } = await supabase
+      .from("users")
+      .select("*")
+      .or(`id.eq."${targetId}",ghl_user_id.eq."${targetId}",email.eq."${targetId}"`)
+      .single();
+    
+    return user as GHLUser | null;
   }
-
-  // NO FALLBACKS ALLOWED IN V7.0 (Strict Enforcement)
-  return null;
 }
