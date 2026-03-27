@@ -10,9 +10,13 @@ interface GatekeeperProps {
   ghlId?: string;
   sessionUserId?: string;
   searchParams?: any;
+  serverDiagnostic?: {
+    requestedUserId: string | undefined;
+    foundUser: string;
+  };
 }
 
-export function Gatekeeper({ debug, isIframe, ghlId, sessionUserId, searchParams }: GatekeeperProps) {
+export function Gatekeeper({ debug, isIframe, ghlId, sessionUserId, searchParams, serverDiagnostic }: GatekeeperProps) {
   const [isDetecting, setIsDetecting] = useState(true);
   const [isDenied, setIsDenied] = useState(false);
   const [showHardRefresh, setShowHardRefresh] = useState(false);
@@ -47,12 +51,17 @@ export function Gatekeeper({ debug, isIframe, ghlId, sessionUserId, searchParams
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ userId: gId })
             });
-            
+
+            // V18.8 Patch - Client-side cookie fallback (in case server Set-Cookie is ignored but client JS can set it)
+            document.cookie = `kiev_user_id=${gId}; path=/; max-age=604800; SameSite=None; Secure`;
+
             // Always fallback to query parameter to guarantee access in 3P blocked environments
-            window.location.href = `?user_id=${gId}${debug ? "&debug=true" : ""}`;
+            // Use replace to prevent back-button loops
+            window.location.replace(`?user_id=${gId}${debug ? "&debug=true" : ""}`);
           } catch (err) {
             console.error("Handshake Error:", err);
-            window.location.href = `?user_id=${gId}${debug ? "&debug=true" : ""}`;
+            document.cookie = `kiev_user_id=${gId}; path=/; max-age=604800; SameSite=None; Secure`;
+            window.location.replace(`?user_id=${gId}${debug ? "&debug=true" : ""}`);
           }
         }
       };
@@ -158,7 +167,7 @@ export function Gatekeeper({ debug, isIframe, ghlId, sessionUserId, searchParams
                 </button>
               </div>
 
-              <div className="flex flex-col items-center gap-1 opacity-30 mt-4">
+              <div className="flex flex-col items-center gap-1 opacity-60 mt-4">
                 <p className="text-[8px] text-gray-400 font-black uppercase tracking-[0.2em]">
                   {APP_SAFETY} {APP_VERSION}
                 </p>
@@ -166,23 +175,24 @@ export function Gatekeeper({ debug, isIframe, ghlId, sessionUserId, searchParams
                   Cross-Domain Sandbox Bridge
                 </p>
 
-                {debug && (
-                  <div className="mt-8 p-6 bg-slate-900 text-left rounded-3xl border border-white/10 font-mono text-[9px] w-full shadow-2xl overflow-hidden">
-                    <p className="text-indigo-400 font-black mb-3 uppercase tracking-widest flex items-center gap-2">
-                       <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" /> Diagnostics
-                    </p>
-                    <div className="space-y-1.5 text-slate-300">
-                      <p><span className="text-slate-500">GHL_ID:</span> {ghlId || "NONE"}</p>
-                      <p><span className="text-slate-500">COOKIE_ID:</span> {sessionUserId || "NONE"}</p>
-                      <p className="break-all pt-2 border-t border-white/5 mt-2">
-                        <span className="text-slate-500">PARAMS:</span> {JSON.stringify(searchParams)}
-                      </p>
-                      <p className="pt-2 border-t border-white/5 mt-2 text-rose-400 font-bold">
-                        VERSIÓN: {APP_VERSION} (Active)
-                      </p>
-                    </div>
-                  </div>
-                )}
+                {true && (
+                   <div className="mt-8 p-6 bg-slate-900 text-left rounded-3xl border border-white/10 font-mono text-[9px] w-full shadow-2xl overflow-hidden">
+                     <p className="text-indigo-400 font-black mb-3 uppercase tracking-widest flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" /> Diagnostics
+                     </p>
+                     <div className="space-y-1.5 text-slate-300">
+                       <p><span className="text-slate-500">GHL_ID:</span> {ghlId || "NONE"}</p>
+                       <p><span className="text-slate-500">REQ_ID:</span> {serverDiagnostic?.requestedUserId || "NONE"}</p>
+                       <p><span className="text-slate-500">USER_FND:</span> {serverDiagnostic?.foundUser || "NONE"}</p>
+                       <p className="break-all pt-2 border-t border-white/5 mt-2">
+                         <span className="text-slate-500">PARAMS:</span> {JSON.stringify(searchParams)}
+                       </p>
+                       <p className="pt-2 border-t border-white/5 mt-2 text-rose-400 font-bold">
+                         VERSIÓN: {APP_VERSION} (Active)
+                       </p>
+                     </div>
+                   </div>
+                 )}
               </div>
             </div>
           )}

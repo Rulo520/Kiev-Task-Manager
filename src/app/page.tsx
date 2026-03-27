@@ -90,7 +90,6 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
     }
   }
 
-  // Gatekeeper: Only authorize if user is known OR debug is active
   const isAuthorized = !!currentUser || isDebug;
 
   if (!isAuthorized) {
@@ -101,6 +100,10 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
         ghlId={ghlIdentity}
         sessionUserId={sessionUserId}
         searchParams={searchParams}
+        serverDiagnostic={{
+          requestedUserId,
+          foundUser: currentUser ? "YES" : "NO"
+        }}
       />
     );
   }
