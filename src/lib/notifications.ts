@@ -14,7 +14,7 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const RESEND_FROM = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
 const GHL_WEBHOOK_URL = process.env.GHL_WEBHOOK_URL;
 const APP_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://kiev-task-manager.vercel.app";
-const DISABLE_EMAIL_NOTIFICATIONS = process.env.DISABLE_EMAIL_NOTIFICATIONS === "true";
+const DISABLE_EMAIL_NOTIFICATIONS = true; // Desactivado por pedido del usuario (V18.5)
 
 
 function getEmailSubjectAndBody(ctx: NotificationContext): { subject: string, html: string } {
