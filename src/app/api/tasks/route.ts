@@ -26,7 +26,14 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { title, description, column_id, priority, due_date, assignees, labels, checklists, attachments } = body;
+    let { title, description, column_id, priority, due_date, assignees, labels, checklists, attachments } = body;
+
+    // --- V18.3 - CLIENT NAME INTEGRATION ---
+    if (authUser.role === "client" && authUser.company_name) {
+      if (!title.includes(` | ${authUser.company_name}`)) {
+        title = `${title} | ${authUser.company_name}`;
+      }
+    }
 
     // --- PERMISSION CHECK ---
     if (authUser.role === "client") {

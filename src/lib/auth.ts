@@ -8,6 +8,7 @@ export type GHLUser = {
   last_name: string;
   role: "agency" | "client";
   location_id: string | null;
+  company_name: string | null;
   profile_pic: string | null;
 };
 

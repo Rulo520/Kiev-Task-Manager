@@ -89,7 +89,11 @@ async function fetchGHLContact(ghlContactId: string): Promise<any | null> {
   }
 }
 
-export async function resolveUser(ghlId: string, preferredRole?: "agency" | "client"): Promise<any | null> {
+export async function resolveUser(
+  ghlId: string, 
+  preferredRole?: "agency" | "client",
+  explicitLocationId?: string
+): Promise<any | null> {
   if (!ghlId) return null;
 
   const supabase = getAdminClient();
@@ -121,7 +125,16 @@ export async function resolveUser(ghlId: string, preferredRole?: "agency" | "cli
 
   if (!ghlProfile) return existingUser || null;
 
+  // For both new and existing users, resolve the company name if possible
+  let resolvedCompanyName = ghlProfile.company_name;
+  if (!resolvedCompanyName && (explicitLocationId || ghlProfile.location_id)) {
+    resolvedCompanyName = await fetchLocationName(explicitLocationId || ghlProfile.location_id);
+  }
+
   if (existingUser) {
+    // V18.3 - DO NOT OVERWRITE company_name with null if we already have one
+    const finalCompanyName = resolvedCompanyName || existingUser.company_name;
+
     const { data: updated, error } = await supabase
       .from("users")
       .update({
@@ -130,8 +143,8 @@ export async function resolveUser(ghlId: string, preferredRole?: "agency" | "cli
         first_name: ghlProfile.first_name,
         last_name: ghlProfile.last_name,
         role: ghlProfile.role,
-        location_id: ghlProfile.location_id,
-        company_name: ghlProfile.company_name,
+        location_id: ghlProfile.location_id || explicitLocationId || existingUser.location_id,
+        company_name: finalCompanyName,
         profile_pic: ghlProfile.profile_pic,
         updated_at: new Date().toISOString(),
       })
@@ -146,6 +159,7 @@ export async function resolveUser(ghlId: string, preferredRole?: "agency" | "cli
     return updated;
   }
 
+  // New user logic
   const { data: inserted, error } = await supabase
     .from("users")
     .insert([{
@@ -154,8 +168,8 @@ export async function resolveUser(ghlId: string, preferredRole?: "agency" | "cli
       first_name: ghlProfile.first_name,
       last_name: ghlProfile.last_name,
       role: ghlProfile.role,
-      location_id: ghlProfile.location_id,
-      company_name: ghlProfile.company_name,
+      location_id: ghlProfile.location_id || explicitLocationId,
+      company_name: resolvedCompanyName,
       profile_pic: ghlProfile.profile_pic,
       updated_at: new Date().toISOString(),
     }])

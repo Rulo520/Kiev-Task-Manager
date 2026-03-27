@@ -60,6 +60,10 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
     (searchParams?.userId as string) ||
     (searchParams?.user_id as string)
   );
+  const explicitLocationId = (
+    (searchParams?.locationId as string) ||
+    (searchParams?.location_id as string)
+  );
   // Contact takes priority if both are present (e.g. a client opening the board)
   const ghlIdentity = ghlContactId || ghlUserId;
 
@@ -80,7 +84,7 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
   const preferredRole = ghlContactId ? "client" : undefined;
 
   if (ghlIdentity && (!currentUser || (preferredRole && currentUser.role !== preferredRole))) {
-    const resolved = await resolveUser(ghlIdentity, preferredRole);
+    const resolved = await resolveUser(ghlIdentity, preferredRole, explicitLocationId);
     if (resolved) {
       currentUser = resolved as unknown as User;
     }
