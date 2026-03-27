@@ -727,7 +727,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
             {/* Multi-select Clientes */}
             {role === 'agency' && (
               <div className="space-y-3">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Clientes (GHL)</label>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Clientes</label>
                 <div className="flex flex-wrap gap-2 max-w-[400px]">
                   <button 
                     onClick={() => setFilterClients([])}
