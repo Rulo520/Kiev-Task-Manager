@@ -577,8 +577,11 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
     setAnimatingTaskId(task.id);
     
     // Wait for the takeoff animation to almost finish
-    await new Promise(resolve => setTimeout(resolve, 350));
+    await new Promise(resolve => setTimeout(resolve, 300));
     
+    // CLEAR ANIMATION STATE before moving columns to prevent double-animation
+    setAnimatingTaskId(null);
+
     const sortedCols = [...columns].sort((a,b) => a.position - b.position);
     const lastColId = sortedCols[sortedCols.length - 1].id;
     const firstColId = sortedCols[0].id;
@@ -598,7 +601,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
     const updatedTask = { ...task, column_id: newColumnId, previous_column_id: previousColumnId };
     setTasks(prev => prev.map(t => t.id === task.id ? updatedTask : t));
     if (detailTask && detailTask.id === task.id) setDetailTask(updatedTask);
-    
+
     try {
       const res = await fetch("/api/tasks", {
         method: "PUT",
@@ -609,9 +612,6 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
         const saved = await res.json();
         setTasks(prev => prev.map(t => t.id === saved.id ? saved : t).sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
         if (detailTask && detailTask.id === saved.id) setDetailTask(saved);
-        
-        // CLEAR ANIMATION
-        setAnimatingTaskId(null);
       }
     } catch(err) {
       console.error("Error toggling completion:", err);

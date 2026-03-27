@@ -144,7 +144,7 @@ export function TaskCard({
             <h4 className={`font-bold text-gray-900 leading-[1.2] text-[12px] group-hover:text-indigo-600 transition-colors ${
               isLastColumn ? "line-through text-gray-400 opacity-60 decoration-emerald-500/50 decoration-2" : ""
             }`}>
-              {task.title} {task.creator?.company_name && (
+              {task.title} {task.creator?.company_name && !task.title.includes("|") && (
                 <span className="text-indigo-500 font-bold ml-1">
                   | {task.creator.company_name}
                 </span>

@@ -1,9 +1,9 @@
 export const APP_NAME = "Kiev Platform";
-export const APP_VERSION = "V19.7";
+export const APP_VERSION = "V19.8";
 /*
+  V19.8 - Branding Conflict Fix & Optimized Animation Sync
   V19.7 - Fly Out Animation Optimization (Simplified entry)
   V19.6 - Automatic Flying Animation (Takeoff & Landing on complete)
-  V19.5 - Flying Card Animation (-5° rotation during drag)
   V19.3 - Fixed Recursive Task Branding Loop
   V19.2 - Chat Autosave & State Sync Fix (Conflict Prevention)
   V19.1 - Robust Branding & Notification Fix (Dynamic GHL Sync)
