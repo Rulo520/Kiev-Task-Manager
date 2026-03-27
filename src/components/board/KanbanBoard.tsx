@@ -330,7 +330,6 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
   const [animatingTaskId, setAnimatingTaskId] = useState<string | null>(null);
-  const [landingTaskId, setLandingTaskId] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
   const isSyncing = useRef(false);
   
@@ -611,10 +610,8 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
         setTasks(prev => prev.map(t => t.id === saved.id ? saved : t).sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
         if (detailTask && detailTask.id === saved.id) setDetailTask(saved);
         
-        // TRIGGER "FLY IN" ANIMATION
+        // CLEAR ANIMATION
         setAnimatingTaskId(null);
-        setLandingTaskId(saved.id);
-        setTimeout(() => setLandingTaskId(null), 800);
       }
     } catch(err) {
       console.error("Error toggling completion:", err);
@@ -795,7 +792,6 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
                       isLastColumn={index === columns.length - 1}
                       onToggleComplete={handleToggleComplete}
                       animatingTaskId={animatingTaskId}
-                      landingTaskId={landingTaskId}
                     />
                   ))}
                 </SortableContext>
