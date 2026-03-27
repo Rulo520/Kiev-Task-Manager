@@ -17,6 +17,8 @@ interface ColumnProps {
   isFirstColumn?: boolean;
   isLastColumn?: boolean;
   onToggleComplete?: (task: Task) => void;
+  animatingTaskId?: string | null;
+  landingTaskId?: string | null;
 }
 
 export function Column({ 
@@ -30,7 +32,9 @@ export function Column({
   role = 'agency',
   isFirstColumn = false,
   isLastColumn = false,
-  onToggleComplete
+  onToggleComplete,
+  animatingTaskId = null,
+  landingTaskId = null
 }: ColumnProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
@@ -195,6 +199,8 @@ export function Column({
               isEditable={role === 'agency' || (role === 'client' && isFirstColumn)}
               isLastColumn={isLastColumn}
               onToggleComplete={onToggleComplete}
+              isAnimatingOut={animatingTaskId === task.id}
+              isAnimatingIn={landingTaskId === task.id}
             />
           ))}
         </SortableContext>

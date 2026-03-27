@@ -329,6 +329,8 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
+  const [animatingTaskId, setAnimatingTaskId] = useState<string | null>(null);
+  const [landingTaskId, setLandingTaskId] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
   const isSyncing = useRef(false);
   
@@ -571,6 +573,13 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
 
   const handleToggleComplete = async (task: Task) => {
     if (!columns || columns.length === 0) return;
+    
+    // START "FLY OUT" ANIMATION
+    setAnimatingTaskId(task.id);
+    
+    // Wait for the takeoff animation to almost finish
+    await new Promise(resolve => setTimeout(resolve, 350));
+    
     const sortedCols = [...columns].sort((a,b) => a.position - b.position);
     const lastColId = sortedCols[sortedCols.length - 1].id;
     const firstColId = sortedCols[0].id;
@@ -601,9 +610,15 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
         const saved = await res.json();
         setTasks(prev => prev.map(t => t.id === saved.id ? saved : t).sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
         if (detailTask && detailTask.id === saved.id) setDetailTask(saved);
+        
+        // TRIGGER "FLY IN" ANIMATION
+        setAnimatingTaskId(null);
+        setLandingTaskId(saved.id);
+        setTimeout(() => setLandingTaskId(null), 800);
       }
     } catch(err) {
       console.error("Error toggling completion:", err);
+      setAnimatingTaskId(null);
       setTasks(prev => prev.map(t => t.id === task.id ? task : t));
       if (detailTask && detailTask.id === task.id) setDetailTask(task);
     }
@@ -779,6 +794,8 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
                       isFirstColumn={index === 0}
                       isLastColumn={index === columns.length - 1}
                       onToggleComplete={handleToggleComplete}
+                      animatingTaskId={animatingTaskId}
+                      landingTaskId={landingTaskId}
                     />
                   ))}
                 </SortableContext>

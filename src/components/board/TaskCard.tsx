@@ -16,6 +16,8 @@ interface TaskCardProps {
   isEditable?: boolean;
   isLastColumn?: boolean;
   onToggleComplete?: (task: Task) => void;
+  isAnimatingOut?: boolean;
+  isAnimatingIn?: boolean;
 }
 
 export function TaskCard({ 
@@ -25,7 +27,9 @@ export function TaskCard({
   role = 'agency', 
   isEditable = true,
   isLastColumn = false,
-  onToggleComplete
+  onToggleComplete,
+  isAnimatingOut = false,
+  isAnimatingIn = false
 }: TaskCardProps) {
   const {
     attributes,
@@ -86,7 +90,7 @@ export function TaskCard({
       onClick={(e) => {
         onClick?.();
       }}
-      className={`group relative bg-white border border-gray-200 rounded-xl p-3.5 shadow-sm hover:shadow-xl hover:shadow-indigo-500/10 hover:border-indigo-200 transition-all duration-300 ${isEditable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} border-b-2 border-b-gray-200/50`}
+      className={`group relative bg-white border border-gray-200 rounded-xl p-3.5 shadow-sm hover:shadow-xl hover:shadow-indigo-500/10 hover:border-indigo-200 transition-all duration-300 ${isEditable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} border-b-2 border-b-gray-200/50 ${isAnimatingOut ? 'animate-task-fly-out' : ''} ${isAnimatingIn ? 'animate-task-fly-in' : ''}`}
     >
       {!isEditable && role === 'client' && (
         <div className="absolute top-2 right-2 z-10 bg-slate-100 text-slate-400 p-1 rounded-md" title="Mover a otra fase está bloqueado para clientes">
