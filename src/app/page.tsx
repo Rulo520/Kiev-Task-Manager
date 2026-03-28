@@ -141,9 +141,9 @@ export default async function Home({ searchParams: searchParamsPromise }: { sear
 
   // 3. User Experience Filtering (V8.0 Hardened)
   let filteredTasks = (tasksData || []) as unknown as Task[];
-  if (currentRole === "client") {
-    // Clients ONLY see their own tasks
-    filteredTasks = filteredTasks.filter(t => t.created_by === finalUser.id);
+  if (currentRole === "client" && finalUser.location_id) {
+    // V22.0 - Clients see all tasks for the CURRENT subaccount context
+    filteredTasks = filteredTasks.filter(t => t.location_id === finalUser.location_id);
   }
 
   // 4. Absolute URL for Iframe breakouts

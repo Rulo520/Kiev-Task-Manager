@@ -101,7 +101,7 @@ export async function resolveUser(
   const { data: existingUser } = await supabase
     .from("users")
     .select("*")
-    .or(`ghl_user_id.eq.${ghlId},email.eq.${ghlId}`)
+    .or(`ghl_user_id.eq."${ghlId}",email.eq."${ghlId}"`)
     .maybeSingle();
 
   // V19.4 - Detect Context Changes (Multi-client support)

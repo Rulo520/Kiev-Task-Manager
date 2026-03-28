@@ -33,8 +33,8 @@ export async function GET(req: Request) {
 
     // Client Role Restriction: 
     // Clients should only see tasks they created.
-    if (user.role === "client") {
-      taskQuery = taskQuery.eq("created_by", user.id);
+    if (user.role === "client" && user.location_id) {
+      taskQuery = taskQuery.eq("location_id", user.location_id);
     }
 
     const { data: tasks, error: taskError } = await taskQuery;

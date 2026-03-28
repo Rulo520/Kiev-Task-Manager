@@ -1,6 +1,7 @@
 export const APP_NAME = "Kiev Platform";
-export const APP_VERSION = "V21.1";
+export const APP_VERSION = "V22.0";
 /*
+  V22.0 - Auto-Branding & Subaccount Consistency (Multi-tenant Fix)
   V21.1 - Hotfix: Realtime Label Catalog & Task Sync (Cache Busting)
   V21.0 - Hierarchical & Private Label System
   V20.0 - Dynamic Multi-Tenant Architecture (GHL Location Sync)

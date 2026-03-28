@@ -12,14 +12,6 @@ export async function POST(req: Request) {
     const supabase = getAdminClient();
     let authUser = await getAuthUser(req);
     
-    // Fallback for development/testing
-    if (!authUser) {
-      const { data: firstUser } = await supabase.from("users").select("*").limit(1).single();
-      if (!firstUser) {
-        return NextResponse.json({ error: "No users found" }, { status: 500 });
-      }
-      authUser = firstUser as unknown as GHLUser;
-    }
 
     if (!authUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -38,6 +30,11 @@ export async function POST(req: Request) {
       // 2. Clients cannot assign other users (assignees must be empty or just themselves)
       if (assignees && assignees.length > 0) {
         return NextResponse.json({ error: "Clients cannot assign users" }, { status: 403 });
+      }
+
+      // 3. V22.0 - Auto-Branding: Append company name to title if not present
+      if (authUser.company_name && !title.includes("|")) {
+        title = `${title} | ${authUser.company_name}`;
       }
     }
 
