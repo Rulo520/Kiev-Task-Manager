@@ -73,6 +73,7 @@ export type Task = {
   attachments?: Attachment[];
   comments?: Comment[];
   creator?: User;
+  company_name: string | null;
   created_at: string;
   updated_at: string;
 };

@@ -387,9 +387,9 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
                   ) : (
                     <h2 className={`text-3xl font-black text-gray-800 leading-tight font-sans tracking-tighter mt-1.5 ${isLastColumn ? 'line-through text-gray-400 opacity-60 decoration-emerald-500/50 decoration-2' : ''}`}>
                       {task.title}
-                      {task.creator?.company_name && (
+                      {task.company_name && (
                         <span className="text-indigo-400 opacity-60 ml-2">
-                          | {task.creator.company_name}
+                          | {task.company_name}
                         </span>
                       )}
                     </h2>

@@ -59,7 +59,14 @@ export function ListView({ tasks, columns, onTaskClick, onDeleteTask }: ListView
               >
                 <td className="px-8 py-5">
                   <div className="flex flex-col gap-0.5">
-                    <span className="font-bold text-gray-800 text-[13px] group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{task.title}</span>
+                    <span className="font-bold text-gray-800 text-[13px] group-hover:text-indigo-600 transition-colors uppercase tracking-tight">
+                      {task.title}
+                      {task.company_name && (
+                        <span className="text-indigo-500 font-bold ml-1">
+                          | {task.company_name}
+                        </span>
+                      )}
+                    </span>
                     <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider opacity-60">
                       Kiev ID-{task.id.slice(0, 4)}
                     </span>

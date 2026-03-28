@@ -35,10 +35,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Clients cannot assign users" }, { status: 403 });
       }
 
-      // 3. V22.0 - Auto-Branding: Append company name to title if not present
-      if (authUser.company_name && !title.includes("|")) {
-        title = `${title} | ${authUser.company_name}`;
-      }
+      // 3. V22.0 - Auto-Branding logic moved to DB column below
     }
 
     // Get current max position
@@ -58,6 +55,7 @@ export async function POST(req: Request) {
         due_date,
         created_by: authUser.id,
         location_id: authUser.location_id,
+        company_name: authUser.role === "agency" ? "Kiev" : authUser.company_name,
         position: count || 0
       })
       .select()

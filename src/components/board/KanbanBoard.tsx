@@ -93,7 +93,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
     // Accumulative (OR within category, AND across categories)
     const matchesAssignee = filterAssignees.length === 0 || task.assignees.some(a => filterAssignees.includes(a.user.id));
     const matchesLabel = filterLabels.length === 0 || task.labels.some((l: any) => filterLabels.includes(l.label.id));
-    const matchesClient = filterClients.length === 0 || (task.creator?.company_name && filterClients.includes(task.creator.company_name));
+    const matchesClient = filterClients.length === 0 || (task.company_name && filterClients.includes(task.company_name));
     
     return matchesSearch && matchesAssignee && matchesLabel && matchesClient;
   });
@@ -522,12 +522,14 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
     // Optimistic Update is already done by onDragOver/onDragEnd logic, 
     // but here we handle the persistence failure
     try {
+      const ghlLocationId = typeof window !== "undefined" ? (new URL(window.location.href).searchParams.get("locationId") || currentUser.location_id || "") : (currentUser.location_id || "");
       setSyncError(null);
       const res = await fetch("/api/tasks", {
         method: "PUT",
         headers: { 
           "Content-Type": "application/json",
-          "x-test-user": currentUser.id
+          "x-test-user": currentUser.id,
+          "x-ghl-location-id": ghlLocationId
         },
         cache: "no-store",
         body: JSON.stringify({ id: movedTask.id, column_id: movedTask.column_id, position: newPosition })
@@ -602,11 +604,13 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
   // --- RENDER ---
   const handleCreateTask = async (data: any) => {
     try {
+      const ghlLocationId = typeof window !== "undefined" ? (new URL(window.location.href).searchParams.get("locationId") || currentUser.location_id || "") : (currentUser.location_id || "");
       const res = await fetch("/api/tasks", {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          "x-test-user": currentUser.id
+          "x-test-user": currentUser.id,
+          "x-ghl-location-id": ghlLocationId
         },
         body: JSON.stringify({ ...data, column_id: activeColumnId })
       });
@@ -656,9 +660,14 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
     if (detailTask && detailTask.id === task.id) setDetailTask(updatedTask);
 
     try {
+      const ghlLocationId = typeof window !== "undefined" ? (new URL(window.location.href).searchParams.get("locationId") || currentUser.location_id || "") : (currentUser.location_id || "");
       const res = await fetch("/api/tasks", {
         method: "PUT",
-        headers: { "Content-Type": "application/json", "x-test-user": currentUser.id },
+        headers: { 
+          "Content-Type": "application/json", 
+          "x-test-user": currentUser.id,
+          "x-ghl-location-id": ghlLocationId
+        },
         body: JSON.stringify({ id: task.id, column_id: newColumnId, previous_column_id: previousColumnId })
       });
       if (res.ok) {
@@ -788,7 +797,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
                   >
                     Todos
                   </button>
-                  {Array.from(new Set(tasks.map(t => t.creator?.company_name).filter(Boolean))).map(clientName => (
+                  {Array.from(new Set(tasks.map(t => t.company_name).filter(Boolean))).map(clientName => (
                     <button 
                       key={clientName!}
                       onClick={() => setFilterClients(prev => prev.includes(clientName!) ? prev.filter(c => c !== clientName) : [...prev, clientName!])}
