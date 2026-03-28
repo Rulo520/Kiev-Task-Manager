@@ -1,6 +1,7 @@
 export const APP_NAME = "Kiev Platform";
-export const APP_VERSION = "V22.0";
+export const APP_VERSION = "V22.1";
 /*
+  V22.1 - Unified Identity Resolution (Fix for x-test-user internal IDs)
   V22.0 - Auto-Branding & Subaccount Consistency (Multi-tenant Fix)
   V21.1 - Hotfix: Realtime Label Catalog & Task Sync (Cache Busting)
   V21.0 - Hierarchical & Private Label System
