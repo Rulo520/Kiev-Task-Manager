@@ -14,8 +14,11 @@ export async function POST(req: Request) {
     
 
     if (!authUser) {
+      console.error("[API Tasks] Unauthorized access attempt. No authUser found for request.");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    console.log(`[API Tasks] Creating task for user ${authUser.email} (${authUser.role})`);
 
     const body = await req.json();
     let { title, description, column_id, priority, due_date, assignees, labels, checklists, attachments } = body;

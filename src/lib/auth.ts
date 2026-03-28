@@ -50,18 +50,25 @@ export async function getAuthUser(req: Request): Promise<GHLUser | null> {
   // This will handle case where users switch locations (isDifferentContext check)
   try {
     const user = await resolveUser(targetId, undefined, explicitLocationId || undefined);
-    return user as GHLUser | null;
-  } catch (err) {
-    console.error("[getAuthUser] Resolution error:", err);
+    if (user) return user as GHLUser;
     
-    // Fallback to strict DB lookup if resolution fails (prevent total logout on GHL API downtime)
+    // Fallback if resolveUser returns null (e.g. unknown GHL ID but exists in DB)
     const supabase = await createClient();
-    const { data: user } = await supabase
+    const { data: dbUser } = await supabase
       .from("users")
       .select("*")
       .or(`id.eq."${targetId}",ghl_user_id.eq."${targetId}",email.eq."${targetId}"`)
-      .single();
-    
-    return user as GHLUser | null;
+      .maybeSingle();
+      
+    return dbUser as GHLUser | null;
+  } catch (err) {
+    console.error("[getAuthUser] Resolution error:", err);
+    const supabase = await createClient();
+    const { data: dbUser } = await supabase
+      .from("users")
+      .select("*")
+      .or(`id.eq."${targetId}",ghl_user_id.eq."${targetId}",email.eq."${targetId}"`)
+      .maybeSingle();
+    return dbUser as GHLUser | null;
   }
 }
