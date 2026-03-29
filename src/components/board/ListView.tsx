@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Calendar as CalendarIcon, CheckSquare } from "lucide-react";
 import { TaskOptionsDropdown } from "./TaskOptionsDropdown";
+import { useKiev } from "@/hooks/useKiev";
 
 interface ListViewProps {
   tasks: Task[];
@@ -14,6 +15,7 @@ interface ListViewProps {
 }
 
 export function ListView({ tasks, columns, onTaskClick, onDeleteTask }: ListViewProps) {
+  const kiev = useKiev();
   const getColumnTitle = (columnId: string) => {
     return columns.find(c => c.id === columnId)?.title || "Sin columna";
   };
@@ -28,7 +30,7 @@ export function ListView({ tasks, columns, onTaskClick, onDeleteTask }: ListView
   const handleCopyLink = (taskId: string) => {
     const url = `${window.location.origin}${window.location.pathname}?userId=${taskId}`;
     navigator.clipboard.writeText(url);
-    alert("Enlace copiado al portapapeles");
+    kiev.alert("Enlace copiado al portapapeles", { title: "Enlace Copiado" });
   };
 
   return (

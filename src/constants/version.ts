@@ -1,6 +1,7 @@
 export const APP_NAME = "Kiev Platform";
-export const APP_VERSION = "V22.6";
+export const APP_VERSION = "V22.7";
 /*
+  V22.7 - Premium Branded Dialogs: Glassmorphism modals (Replaces browser alerts/confirms)
   V22.6 - Quick Filter UX: Non-intrusive 'Y' shortcut (No menu expansion)
   V22.5 - Filter UX Polishing: Active filter indicator (Pulse & Highlight)
   V22.4 - Label System Overhaul: Global Uniqueness, Agency Master View & Client Isolation

@@ -29,6 +29,7 @@ import { createClient } from "@/lib/supabase/client";
 import { LayoutGrid, List as ListIcon, Calendar as CalendarIcon, Filter, Search, User as UserIcon, Tag, Plus } from "lucide-react";
 import { ListView } from "./ListView";
 import { CalendarView } from "./CalendarView";
+import { useKiev } from "@/hooks/useKiev";
 
 interface KanbanBoardProps {
   initialColumns: Column[];
@@ -43,6 +44,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
   // --- STATE ---
   const [view, setView] = useState<"kanban" | "list" | "calendar">("kanban");
   const [columns, setColumns] = useState<Column[]>(initialColumns);
+  const kiev = useKiev();
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const tasksRef = useRef<Task[]>(initialTasks);
   const [agencyUsers] = useState<User[]>(initialAgencyUsers);
@@ -409,7 +411,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
   };
 
   const deleteTask = async (taskId: string) => {
-    if (!confirm("¿Estás seguro de que deseas eliminar este requerimiento?")) return;
+    if (!(await kiev.confirm("¿Estás seguro de que deseas eliminar este requerimiento?", { isDanger: true }))) return;
 
     try {
       const res = await fetch(`/api/tasks/${taskId}`, {
@@ -426,11 +428,18 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
     }
   };
   const handleAddColumn = async () => {
-    const title = prompt("Nombre de la nueva fase:");
+    const title = await kiev.prompt("Escribe el nombre de la nueva fase:", { 
+      title: "Nueva Fase",
+      placeholder: "Ej: En Revisión..."
+    });
     if (!title) return;
     
     // V9.2 - Visibility Choice
-    const isVisibleToClient = confirm("¿Deseas que esta fase sea visible para el CLIENTE?\n\nAceptar = Visible\nCancelar = Solo Agencia");
+    const isVisibleToClient = await kiev.confirm("¿Deseas que esta fase sea visible para el CLIENTE?", { 
+      confirmText: "Visible", 
+      cancelText: "Solo Agencia",
+      isDanger: false 
+    });
 
     try {
       const res = await fetch("/api/columns", {

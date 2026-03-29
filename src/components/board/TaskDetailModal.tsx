@@ -7,9 +7,10 @@ import {
   Paperclip, Link as LinkIcon, Tag
 } from "lucide-react";
 import { Task, ChecklistItem, Attachment, Comment, User, Role, Label } from "@/types/kanban";
+import { createClient } from "@/lib/supabase/client";
+import { useKiev } from "@/hooks/useKiev";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { createClient } from "@/lib/supabase/client";
 
 interface TaskDetailModalProps {
   isOpen: boolean;
@@ -27,6 +28,7 @@ interface TaskDetailModalProps {
 }
 
 export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, currentUser, isFirstColumn, agencyUsers = [], availableLabels = [], onLabelCreated, isLastColumn = false, onToggleComplete, onUpdateTask }: TaskDetailModalProps) {
+  const kiev = useKiev();
   const [task, setTask] = useState<Task>(initialTask);
   const [serverTask, setServerTask] = useState<Task>(initialTask);
   const [isLoading, setIsLoading] = useState(true);
@@ -100,19 +102,18 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
     return () => window.removeEventListener("keydown", handleEsc);
   }, [isOpen, isDirty]);
 
-  const handleConfirmClose = () => {
+  const handleConfirmClose = async () => {
     if (isDirty) {
-      const confirmSave = window.confirm("¿Deseas guardar los cambios antes de salir?");
+      const confirmSave = await kiev.confirm("¿Deseas guardar los cambios antes de salir?", { 
+        confirmText: "Guardar", 
+        cancelText: "Descartar",
+        isDanger: false 
+      });
       if (confirmSave) {
         handleSaveAll(true);
       } else {
-        // We use a custom logic here because window.confirm only has OK/Cancel.
-        // If they click "Cancel" in confirm(), they stay. If they click "OK", they save.
-        // To allow "Discard without saving", we'd need a custom modal.
-        // Given the user's request: "aparecer un popup preguntando si quiere guardar los cambios o prefiere cancelar"
-        // I'll implement a simple two-step with a clear message or just the standard confirm.
-        // Actually, let's stick to the simplest interpretation first:
-        if (window.confirm("¿Estás seguro de que quieres descartar los cambios?")) {
+        // V22.7 - Now using custom modal for discard confirmation
+        if (await kiev.confirm("¿Estás seguro de que quieres descartar los cambios?", { isDanger: true })) {
           onClose();
         }
       }

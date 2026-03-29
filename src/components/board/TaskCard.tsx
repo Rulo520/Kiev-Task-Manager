@@ -7,6 +7,7 @@ import { Calendar, CheckSquare, MessageCircle, Paperclip, LockIcon } from "lucid
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { TaskOptionsDropdown } from "./TaskOptionsDropdown";
+import { useKiev } from "@/hooks/useKiev";
 
 interface TaskCardProps {
   task: Task;
@@ -29,6 +30,7 @@ export function TaskCard({
   onToggleComplete,
   isAnimatingOut = false
 }: TaskCardProps) {
+  const kiev = useKiev();
   const {
     attributes,
     listeners,
@@ -76,7 +78,7 @@ export function TaskCard({
   const handleCopyLink = () => {
     const url = `${window.location.origin}${window.location.pathname}?userId=${task.id}`;
     navigator.clipboard.writeText(url);
-    alert("Enlace copiado al portapapeles");
+    kiev.alert("Enlace copiado al portapapeles", { title: "Enlace Copiado" });
   };
 
   return (
