@@ -101,7 +101,8 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
 
   const filteredTasks = tasks.filter(task => {
     const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         task.description?.toLowerCase().includes(searchQuery.toLowerCase());
+                         task.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         task.company_name?.toLowerCase().includes(searchQuery.toLowerCase());
     
     // Accumulative (OR within category, AND across categories)
     const matchesAssignee = filterAssignees.length === 0 || task.assignees.some(a => filterAssignees.includes(a.user.id));
