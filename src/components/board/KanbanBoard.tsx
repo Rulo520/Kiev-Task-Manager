@@ -211,7 +211,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
       }
       if (e.key.toLowerCase() === 'y') {
         setFilterAssignees([currentUser.id]);
-        setShowFilters(true);
+        // V22.6 - No automatic filter menu expansion on 'Y' (Mastering UX with visual indicators)
       }
     };
 
