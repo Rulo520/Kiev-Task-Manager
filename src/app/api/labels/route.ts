@@ -13,19 +13,21 @@ export async function GET(request: Request) {
 
   const supabase = await createClient();
   
-  // 1. Base Query: Only labels for the current location
-  let query = supabase
-    .from("labels")
-    .select("*")
-    .eq("location_id", locationId);
+  // 1. Base Query
+  let query = supabase.from("labels").select("*");
 
-  // 2. V22.3 - Visibility Logic:
-  // Agency sees ALL labels for this location.
-  // Clients see ONLY:
-  // - Labels created by Agency for this location (Shared)
-  // - Labels they created themselves for this location (Private)
+  // 2. V22.4 - Visibility & Isolation Logic:
   if (user && user.role === "client") {
-    query = query.or(`created_by_role.eq.agency,created_by.eq.${user.id}`);
+    // Clients see:
+    // - Labels created by Agency (Shared globally/as templates)
+    // - Labels they created themselves for THIS specific subaccount
+    query = query.or(`created_by_role.eq.agency,and(location_id.eq.${locationId},created_by.eq.${user.id})`);
+  } else if (user && user.role === "agency") {
+    // Agency sees EVERYTHING in the database (Global Management)
+    // No additional filtering needed.
+  } else {
+    // Fallback for unauthorized/public requests if allowed via locationId in URL
+    query = query.eq("location_id", locationId);
   }
 
   const { data, error } = await query.order("name", { ascending: true });
