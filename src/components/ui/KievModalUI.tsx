@@ -34,8 +34,24 @@ export function KievModalUI({
   const [inputValue, setInputValue] = useState(defaultValue);
 
   useEffect(() => {
-    if (isOpen) setInputValue(defaultValue);
-  }, [isOpen, defaultValue]);
+    if (isOpen) {
+      setInputValue(defaultValue);
+      
+      const handleGlobalKeyDown = (e: KeyboardEvent) => {
+        // Only trigger global Enter if not in a prompt (handled by input) 
+        // OR if it's a simple confirm/alert
+        if (e.key === "Enter" && !isPrompt) {
+          onConfirm(true);
+        }
+        if (e.key === "Escape") {
+          onCancel();
+        }
+      };
+
+      window.addEventListener("keydown", handleGlobalKeyDown);
+      return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+    }
+  }, [isOpen, defaultValue, isPrompt, onConfirm, onCancel]);
 
   return (
     <AnimatePresence>

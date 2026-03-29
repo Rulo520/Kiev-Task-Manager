@@ -1,6 +1,7 @@
 export const APP_NAME = "Kiev Platform";
-export const APP_VERSION = "V22.7";
+export const APP_VERSION = "V22.8";
 /*
+  V22.8 - Keyboard Accessibility: Enter to confirm, Escape to cancel in custom modals.
   V22.7 - Premium Branded Dialogs: Glassmorphism modals (Replaces browser alerts/confirms)
   V22.6 - Quick Filter UX: Non-intrusive 'Y' shortcut (No menu expansion)
   V22.5 - Filter UX Polishing: Active filter indicator (Pulse & Highlight)
