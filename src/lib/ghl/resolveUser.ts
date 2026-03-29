@@ -105,14 +105,13 @@ export async function resolveUser(
     .maybeSingle();
 
   // V19.4 - Detect Context Changes (Multi-client support)
-  // If the location specified in the URL corresponds to a different client, we must force re-resolution
-  // even if the user record exists, to update the dynamic company_name for branding.
   const isMissingData = !existingUser?.company_name && explicitLocationId;
   const isDifferentContext = explicitLocationId && existingUser?.location_id !== explicitLocationId;
 
   if (existingUser && (!preferredRole || existingUser.role === preferredRole) && !isMissingData && !isDifferentContext) {
     const lastUpdated = new Date(existingUser.updated_at || 0).getTime();
-    if (Date.now() - lastUpdated > 24 * 60 * 60 * 1000 && GHL_ACCESS_TOKEN) {
+    const SIX_HOURS = 6 * 60 * 60 * 1000;
+    if (Date.now() - lastUpdated > SIX_HOURS && GHL_ACCESS_TOKEN) {
       refreshUserInBackground(existingUser.ghl_user_id, existingUser.role);
     }
     return existingUser;
@@ -132,10 +131,13 @@ export async function resolveUser(
   if (!ghlProfile) return existingUser || null;
 
   // For both new and existing users, resolve the company name if possible
-  // V18.4 - If explicitLocationId is provided, ALWAYS fetch its name to use as current context
+  // V22.3 - Master subaccount context: explicitLocationId from session ALWAYS takes priority
   let resolvedCompanyName = ghlProfile.company_name;
-  if (explicitLocationId || (!resolvedCompanyName && ghlProfile.location_id)) {
-    const locName = await fetchLocationName(explicitLocationId || ghlProfile.location_id);
+  if (explicitLocationId) {
+    const locName = await fetchLocationName(explicitLocationId);
+    if (locName) resolvedCompanyName = locName;
+  } else if (!resolvedCompanyName && ghlProfile.location_id) {
+    const locName = await fetchLocationName(ghlProfile.location_id);
     if (locName) resolvedCompanyName = locName;
   }
 

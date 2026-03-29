@@ -13,13 +13,17 @@ export async function GET(request: Request) {
 
   const supabase = await createClient();
   
+  // 1. Base Query: Only labels for the current location
   let query = supabase
     .from("labels")
     .select("*")
     .eq("location_id", locationId);
 
-  // V21.0 - Hierarchical Visibility
-  // Agency sees ALL labels. Client sees agency labels + their own.
+  // 2. V22.3 - Visibility Logic:
+  // Agency sees ALL labels for this location.
+  // Clients see ONLY:
+  // - Labels created by Agency for this location (Shared)
+  // - Labels they created themselves for this location (Private)
   if (user && user.role === "client") {
     query = query.or(`created_by_role.eq.agency,created_by.eq.${user.id}`);
   }
@@ -72,7 +76,7 @@ export async function POST(request: Request) {
     .insert([{ 
       name, 
       color, 
-      location_id: locationId || user.location_id || "test-location-id",
+      location_id: request.headers.get("x-ghl-location-id") || locationId || user.location_id || "test-location-id",
       created_by: user.id,
       created_by_role: user.role
     }])
@@ -118,7 +122,7 @@ export async function DELETE(request: Request) {
 
   const canDelete = 
     user.role === "agency" || 
-    (user.role === "client" && label.created_by === user.id);
+    (user.role === "client" && label.created_by === user.id && label.created_by_role !== 'agency');
 
   if (!canDelete) {
     return NextResponse.json({ error: "No tienes permiso para borrar esta etiqueta. Solo puedes borrar las tuyas." }, { status: 403 });

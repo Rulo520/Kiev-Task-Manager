@@ -1,6 +1,7 @@
 export const APP_NAME = "Kiev Platform";
-export const APP_VERSION = "V22.2";
+export const APP_VERSION = "V22.3";
 /*
+  V22.3 - Master Subaccount Context: Universal Session Headers & Label Isolation
   V22.2 - Subaccount Context Mastery (x-ghl-location-id & Persistent Branding)
   V22.1 - Unified Identity Resolution (Fix for x-test-user internal IDs)
   V22.0 - Auto-Branding & Subaccount Consistency (Multi-tenant Fix)

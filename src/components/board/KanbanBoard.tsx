@@ -86,6 +86,17 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
 
 
   // --- DERIVED DATA (FILTERING) ---
+  // V22.3 - Global Header Helper for subaccount context mastery
+  const getHeaders = () => {
+    const url = new URL(window.location.href);
+    const ghlLocationId = url.searchParams.get("location_id") || url.searchParams.get("locationId") || currentUser.location_id || "";
+    return {
+      "Content-Type": "application/json",
+      "x-test-user": currentUser.id,
+      "x-ghl-location-id": ghlLocationId
+    };
+  };
+
   const filteredTasks = tasks.filter(task => {
     const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                          task.description?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -401,7 +412,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
     try {
       const res = await fetch(`/api/tasks/${taskId}`, {
         method: "DELETE",
-        headers: { "x-test-user": currentUser.id }
+        headers: getHeaders()
       });
 
       if (!res.ok) throw new Error("No se pudo eliminar la tarea");
@@ -422,10 +433,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
     try {
       const res = await fetch("/api/columns", {
         method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "x-test-user": currentUser.id
-        },
+        headers: getHeaders(),
         body: JSON.stringify({ 
           title, 
           position: columns.length + 1,
@@ -446,10 +454,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
     try {
       const res = await fetch(`/api/columns/${id}`, {
         method: "PUT",
-        headers: { 
-          "Content-Type": "application/json",
-          "x-test-user": currentUser.id
-        },
+        headers: getHeaders(),
         body: JSON.stringify({ title, is_visible_to_client })
       });
       if (res.ok) {
@@ -493,7 +498,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
           // Persist reorder
           fetch("/api/columns/reorder", {
             method: "POST",
-            headers: { "Content-Type": "application/json", "x-test-user": currentUser.id },
+            headers: getHeaders(),
             body: JSON.stringify({ columnIds: newCols.map(c => c.id) })
           });
           
@@ -522,15 +527,9 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
     // Optimistic Update is already done by onDragOver/onDragEnd logic, 
     // but here we handle the persistence failure
     try {
-      const ghlLocationId = typeof window !== "undefined" ? (new URL(window.location.href).searchParams.get("locationId") || currentUser.location_id || "") : (currentUser.location_id || "");
-      setSyncError(null);
       const res = await fetch("/api/tasks", {
         method: "PUT",
-        headers: { 
-          "Content-Type": "application/json",
-          "x-test-user": currentUser.id,
-          "x-ghl-location-id": ghlLocationId
-        },
+        headers: getHeaders(),
         cache: "no-store",
         body: JSON.stringify({ id: movedTask.id, column_id: movedTask.column_id, position: newPosition })
       });
@@ -604,14 +603,9 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
   // --- RENDER ---
   const handleCreateTask = async (data: any) => {
     try {
-      const ghlLocationId = typeof window !== "undefined" ? (new URL(window.location.href).searchParams.get("locationId") || currentUser.location_id || "") : (currentUser.location_id || "");
       const res = await fetch("/api/tasks", {
         method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "x-test-user": currentUser.id,
-          "x-ghl-location-id": ghlLocationId
-        },
+        headers: getHeaders(),
         body: JSON.stringify({ ...data, column_id: activeColumnId })
       });
       if (res.ok) {
@@ -660,14 +654,9 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
     if (detailTask && detailTask.id === task.id) setDetailTask(updatedTask);
 
     try {
-      const ghlLocationId = typeof window !== "undefined" ? (new URL(window.location.href).searchParams.get("locationId") || currentUser.location_id || "") : (currentUser.location_id || "");
       const res = await fetch("/api/tasks", {
         method: "PUT",
-        headers: { 
-          "Content-Type": "application/json", 
-          "x-test-user": currentUser.id,
-          "x-ghl-location-id": ghlLocationId
-        },
+        headers: getHeaders(),
         body: JSON.stringify({ id: task.id, column_id: newColumnId, previous_column_id: previousColumnId })
       });
       if (res.ok) {
@@ -906,6 +895,7 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
         agencyUsers={agencyUsers}
         availableLabels={labels}
         onLabelCreated={(newLabel) => setLabels(prev => [...prev, newLabel])}
+        currentUser={currentUser}
       />
 
       {detailTask && (

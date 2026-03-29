@@ -121,6 +121,17 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
     }
   };
 
+  // V22.3 - Global Header Helper for subaccount context mastery
+  const getHeaders = () => {
+    const url = new URL(window.location.href);
+    const ghlLocationId = url.searchParams.get("location_id") || url.searchParams.get("locationId") || currentUser.location_id || "";
+    return {
+      "Content-Type": "application/json",
+      "x-test-user": currentUser.id,
+      "x-ghl-location-id": ghlLocationId
+    };
+  };
+
   // Realtime Subscriptions
   useEffect(() => {
     if (!isOpen) return;
@@ -187,10 +198,7 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
     try {
       const res = await fetch(`/api/tasks/${task.id}/checklists`, {
         method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "x-test-user": currentUser.id
-        },
+        headers: getHeaders(),
         body: JSON.stringify({ title: newChecklistTitle, position: (task.checklists?.length || 0) })
       });
       if (res.ok) {
@@ -204,10 +212,7 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
     try {
       await fetch(`/api/tasks/${task.id}/checklists/${itemId}`, {
         method: "PUT",
-        headers: { 
-          "Content-Type": "application/json",
-          "x-test-user": currentUser.id
-        },
+        headers: getHeaders(),
         body: JSON.stringify({ is_completed: !isCompleted })
       });
       // Optimized: update local state immediately
@@ -224,7 +229,7 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
     try {
       const res = await fetch(`/api/tasks/${task.id}/checklists/${itemId}`, { 
         method: "DELETE",
-        headers: { "x-test-user": currentUser.id }
+        headers: getHeaders()
       });
       if (res.ok) fetchTaskDetails();
     } catch (err) { console.error(err); }
@@ -236,10 +241,7 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
     try {
       const res = await fetch(`/api/tasks/${task.id}/comments`, {
         method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "x-test-user": currentUser.id
-        },
+        headers: getHeaders(),
         body: JSON.stringify({ content: newComment, type: activeChat })
       });
       if (res.ok) {
@@ -259,10 +261,7 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
     try {
       const res = await fetch(`/api/tasks/${task.id}/attachments`, {
         method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "x-test-user": currentUser.id
-        },
+        headers: getHeaders(),
         body: JSON.stringify({ name: newAttachmentName, url: newAttachmentUrl })
       });
       if (res.ok) {
@@ -278,7 +277,7 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
     try {
       await fetch(`/api/tasks/${task.id}/attachments/${id}`, { 
         method: "DELETE",
-        headers: { "x-test-user": currentUser.id }
+        headers: getHeaders()
       });
       fetchTaskDetails();
     } catch (err) { console.error(err); }
@@ -289,10 +288,7 @@ export function TaskDetailModal({ isOpen, onClose, task: initialTask, role, curr
     try {
       const res = await fetch("/api/tasks", {
         method: "PUT",
-        headers: { 
-          "Content-Type": "application/json",
-          "x-test-user": currentUser.id
-        },
+        headers: getHeaders(),
         body: JSON.stringify({ id: task.id, ...updates })
       });
       if (res.ok) {

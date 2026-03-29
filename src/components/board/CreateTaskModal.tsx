@@ -23,6 +23,7 @@ interface CreateTaskModalProps {
   syncError?: string | null;
   availableLabels?: Label[];
   onLabelCreated?: (label: Label) => void;
+  currentUser: User;
 }
 
 export function CreateTaskModal({ 
@@ -33,7 +34,8 @@ export function CreateTaskModal({
   agencyUsers,
   syncError,
   availableLabels = [],
-  onLabelCreated
+  onLabelCreated,
+  currentUser
 }: CreateTaskModalProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -264,9 +266,15 @@ export function CreateTaskModal({
                     if (!newLabelName.trim()) return;
                     setIsSubmittingLabel(true);
                     try {
+                      const url = new URL(window.location.href);
+                      const ghlLocationId = url.searchParams.get("location_id") || url.searchParams.get("locationId") || currentUser.location_id || "";
                       const res = await fetch("/api/labels", {
                         method: "POST",
-                        headers: { "Content-Type": "application/json" },
+                        headers: { 
+                          "Content-Type": "application/json",
+                          "x-test-user": currentUser.id,
+                          "x-ghl-location-id": ghlLocationId
+                        },
                         body: JSON.stringify({ name: newLabelName.trim(), color: newLabelColor })
                       });
                       if (res.ok) {
