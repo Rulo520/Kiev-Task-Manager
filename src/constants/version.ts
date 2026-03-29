@@ -1,6 +1,7 @@
 export const APP_NAME = "Kiev Platform";
-export const APP_VERSION = "V22.4";
+export const APP_VERSION = "V22.5";
 /*
+  V22.5 - Filter UX Polishing: Active filter indicator (Pulse & Highlight)
   V22.4 - Label System Overhaul: Global Uniqueness, Agency Master View & Client Isolation
   V22.3 - Master Subaccount Context: Universal Session Headers & Label Isolation
   V22.2 - Subaccount Context Mastery (x-ghl-location-id & Persistent Branding)

@@ -109,6 +109,8 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
     return matchesSearch && matchesAssignee && matchesLabel && matchesClient;
   });
 
+  const isFilterActive = filterAssignees.length > 0 || filterLabels.length > 0 || filterClients.length > 0 || searchQuery.length > 0;
+
   // --- REALTIME ---
   const pendingFetches = useRef<Set<string>>(new Set());
 
@@ -719,9 +721,16 @@ export function KanbanBoard({ initialColumns, initialTasks, role, currentUser, i
 
           <button 
             onClick={() => setShowFilters(!showFilters)}
-            className={`p-2 rounded-xl border transition-all ${showFilters ? "bg-indigo-50 border-indigo-200 text-indigo-600 shadow-inner" : "bg-white border-gray-100 text-gray-500 hover:bg-gray-50"}`}
+            className={`p-2 rounded-xl border transition-all relative ${
+              showFilters || isFilterActive 
+                ? "bg-indigo-50 border-indigo-200 text-indigo-600 shadow-inner" 
+                : "bg-white border-gray-100 text-gray-500 hover:bg-gray-50"
+            }`}
           >
-            <Filter size={18} />
+            <Filter size={18} fill={isFilterActive ? "currentColor" : "none"} fillOpacity={isFilterActive ? 0.1 : 0} />
+            {isFilterActive && !showFilters && (
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-indigo-600 border-2 border-white rounded-full shadow-sm animate-pulse" />
+            )}
           </button>
         </div>
       </div>
